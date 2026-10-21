@@ -1,0 +1,130 @@
+{
+  "built": "2026-10-19",
+  "version": "6",
+  "purpose": "Public mpv Neon v6; excludes Lossless.dll and personal runtime data",
+  "components": [
+    {
+      "component": "mpv",
+      "version": "v0.41.0-1224-g6a262d11f",
+      "url": "https://github.com/shinchiro/mpv-winbuild-cmake/releases/download/20261019/mpv-x86_64-20261019-git-6a262d11f6.7z",
+      "upstream": "https://github.com/mpv-player/mpv/tree/6a262d11f6"
+    },
+    {
+      "component": "uosc",
+      "version": "5.13.0",
+      "url": "https://github.com/tomasklaen/uosc/releases/tag/5.13.0"
+    },
+    {
+      "component": "FSRCNNX",
+      "version": "1.1",
+      "url": "https://github.com/igv/FSRCNN-TensorFlow/releases/tag/1.1"
+    },
+    {
+      "component": "KrigBilateral",
+      "revision": "038064821c5f768dfc6c00261535018d5932cdd5",
+      "url": "https://gist.github.com/igv/a015fc885d5c22e6891820ad89555637"
+    },
+    {
+      "component": "SSimSuperRes",
+      "revision": "15d93440d0a24fc4b8770070be6a9fa2af6f200b",
+      "url": "https://gist.github.com/igv/2364ffa6e81540f29cb7ab4c9bc05b6b"
+    },
+    {
+      "component": "Anime4K",
+      "version": "v4.0.1",
+      "asset": "Anime4K_v4.0.zip",
+      "url": "https://github.com/bloc97/Anime4K/releases/tag/v4.0.1"
+    },
+    {
+      "component": "autoload.lua",
+      "revision": "6a262d11f6",
+      "url": "https://github.com/mpv-player/mpv/blob/6a262d11f6/TOOLS/lua/autoload.lua"
+    },
+    {
+      "component": "yt-dlp",
+      "version": "2026.08.19",
+      "url": "https://github.com/yt-dlp/yt-dlp/releases/tag/2026.08.19",
+      "official_sha256_verified": true
+    },
+    {
+      "component": "Deno",
+      "version": "2.9.7",
+      "url": "https://github.com/denoland/deno/releases/tag/v2.9.7"
+    },
+    {
+      "component": "Python embedded",
+      "version": "3.13.16",
+      "url": "https://www.python.org/ftp/python/3.13.16/python-3.13.16-embed-amd64.zip"
+    },
+    {
+      "component": "thumbfast",
+      "revision": "0f711de3138c9bd6718209d819ac54022c23ded2",
+      "url": "https://github.com/po5/thumbfast.git"
+    },
+    {
+      "component": "memo",
+      "revision": "e0624611438b2e19ef4b7e24f53461c9d0304b07",
+      "url": "https://github.com/po5/memo.git"
+    },
+    {
+      "component": "quality-menu",
+      "revision": "7dc5631c014f4936a7fd50b3a66a1222c6504af5",
+      "url": "https://github.com/christoph-heinrich/mpv-quality-menu.git"
+    },
+    {
+      "component": "mpv_sponsorblock",
+      "revision": "7785c1477103f2fafabfd65fdcf28ef26e6d7f0d",
+      "url": "https://github.com/po5/mpv_sponsorblock.git"
+    },
+    {
+      "component": "mpv-prescalers",
+      "revision": "b3f0a59d68f33b7162051ea5970a5169558f0ea2",
+      "url": "https://github.com/bjin/mpv-prescalers.git"
+    },
+    {
+      "component": "mpv-sub-select",
+      "revision": "26d24a0fd1d69988eaedda6056a2c87d0a55b6cb",
+      "url": "https://github.com/CogentRedTester/mpv-sub-select"
+    },
+    {
+      "component": "Personal ambient/A-B/presets/sleep tools",
+      "version": "5",
+      "sources": [
+        "portable_config/shaders/Ambient.glsl",
+        "portable_config/scripts/ambient.lua",
+        "portable_config/scripts/picture-presets.lua",
+        "portable_config/scripts/sleep-timer.lua"
+      ],
+      "api_reference": "https://libplacebo.org/custom-shaders/"
+    },
+    {
+      "component": "TorrServer bundled fallback",
+      "version": "MatriX.147",
+      "url": "https://github.com/YouROK/TorrServer/releases/download/MatriX.147/TorrServer-windows-amd64.exe",
+      "source": "https://github.com/YouROK/TorrServer/tree/MatriX.147",
+      "sha256": "2a67f19266f111f00828857e7e37c233a509c0def4f6254fd564a1761f35b47d",
+      "hash_note": "Calculated locally; not compared with an upstream signed checksum"
+    },
+    {
+      "component": "LSFG native plugin",
+      "source": "native/lsfg-native.c",
+      "compiler": "Zig 0.15.2",
+      "abi_reference": "https://github.com/Jossec101/openls",
+      "reference_revision": "a382695fe853500479d8eba393653744b36f6ac2"
+    },
+    {
+      "component": "Glass/Deck themes and horizontal volume",
+      "version": "6",
+      "sources": [
+        "portable_config/scripts/ui-theme.lua",
+        "portable_config/scripts/uosc/elements/HorizontalVolume.lua"
+      ],
+      "local_uosc_changes": [
+        "main.lua",
+        "elements/Controls.lua",
+        "elements/Menu.lua"
+      ],
+      "reference": "https://github.com/tomasklaen/uosc/tree/5.13.0"
+    }
+  ]
+}
