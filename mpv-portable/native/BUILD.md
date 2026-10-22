@@ -1,6 +1,10 @@
-# Building lsfg-native.dll
+# Сборка native-модуля и launcher
 
-Public distribution note: Lossless.dll is NOT included in this repository or public installer. The paths and ABI discussion below describe optional integration with a compatible licensed library supplied by the user, not a bundled core.
+Текущий launcher v11.4 — installer-source/Launcher.cs в корне репозитория. Он компилируется installer-source/build.ps1 системным csc.exe (.NET Framework 4) и поддерживает пользовательские профили и обновление defaults. Прежний C launcher ниже оставлен как исторический исходник; для текущего выпуска его не собирать.
+
+**Lossless.dll не включается в публичный пакет.** Она не является зависимостью обычного воспроизведения; LSFG без неё сообщает об отсутствии библиотеки.
+
+# Исторический launcher и сборка lsfg-native.dll
 
 The plugin also sets the mpv window icon from `assets/player-neon-07.ico` without loading the LS engine. The separate GUI launcher is built from this directory with:
 

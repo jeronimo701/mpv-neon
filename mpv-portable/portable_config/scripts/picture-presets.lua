@@ -1,3 +1,4 @@
+local neon_context=dofile(require('mp').command_native({'expand-path','~~/script-modules/neon-context.lua'}))
 local mp=require 'mp'
 local utils=require 'mp.utils'
 local input=require 'mp.input'
@@ -48,7 +49,7 @@ local function valid(state)
     end
     if type(state.shader_opts)~='table' then return false end
     for k,v in pairs(state.shader_opts) do if type(k)~='string' or k:match('^ambient_') or type(v)~='string' or #k>128 or #v>256 then return false end end
-    local ar={mode={0,4},brightness={0,100},coverage={0,100},blur={0,128}}
+    local ar={mode={0,4},brightness={0,100},coverage={0,100},blur={0,128},edge={0,100}}
     for k,v in pairs(state.ambient) do
         if k=='reaction' then if v~='calm' and v~='smooth' and v~='immediate' then return false end
         elseif not ar[k] or type(v)~='number' or v~=v or v<ar[k][1] or v>ar[k][2] or (k=='mode' and v%1~=0) then return false end
@@ -128,7 +129,7 @@ local function menu()
             {title='Применить',value={'script-message-to','picture_presets','load',p.id}},
             {title='Удалить…',items={{title='Подтвердить удаление «'..p.name..'»',value={'script-message-to','picture_presets','delete',p.id}}}}}}
     end end
-    mp.commandv('script-message-to','uosc','open-menu',utils.format_json({type='my-picture-presets',title='Мои пресеты изображения',items=items,
+    neon_context.open(utils.format_json({type='my-picture-presets',title='Мои пресеты изображения',items=items,
         footnote='Шейдеры, цвет, масштабирование, подсветка • Без громкости, LSFG и позиции видео • F11'}))
 end
 mp.register_script_message('load',function(id)
@@ -151,3 +152,5 @@ mp.add_key_binding(nil,'menu',menu)
 mp.add_key_binding(nil,'save',save_prompt)
 mp.register_event('start-file',after)
 mp.set_property('user-data/picture/ab','after')
+
+neon_context.register({menu=menu})

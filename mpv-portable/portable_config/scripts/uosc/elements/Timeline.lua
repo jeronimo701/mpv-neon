@@ -63,7 +63,14 @@ function Timeline:update_dimensions()
 	self.ay = display.height - window_border_size - self.size - self.top_border
 	self.bx = display.width - window_border_size
 	self.by = display.height - window_border_size
+	if options.menu_style=='youtube' then
+		local margin=12*state.scale
+		self.ax,self.bx=margin,display.width-margin
+		self.by=display.height-(options.controls_margin+options.controls_size+8)*state.scale
+		self.ay=self.by-self.size
+	end
 	self.width = self.bx - self.ax
+	mp.set_property_native('user-data/ui-theme/timeline-box',{ax=self.ax,ay=self.ay,bx=self.bx,by=self.by})
 	self.chapter_size = math.max((self.by - self.ay) / 10, 3)
 	self.chapter_size_hover = self.chapter_size * 2
 
@@ -182,6 +189,7 @@ function Timeline:cursor_command(command)
 end
 
 function Timeline:render()
+	if options.menu_style=='youtube' then return self:render_youtube() end
 	if self.size == 0 then
 		self:clear_thumbnail()
 		return
@@ -530,5 +538,60 @@ function Timeline:render()
 
 	return ass
 end
+
+function Timeline:render_youtube()
+    local visibility=math.max(0,self:get_visibility())
+    if visibility<=0 then self:clear_thumbnail();return end
+    self.is_hovered=self.proximity_raw<=0
+    cursor:zone('primary_down',self,function()
+        self:handle_cursor_down();cursor:once('primary_up',function()self:handle_cursor_up()end)
+    end)
+    local ass=assdraw.ass_new()
+    local cy=(self.ay+self.by)/2
+    local thickness=(self.is_hovered and 5 or 3)*state.scale
+    local ax,bx=self.ax,self.bx
+    local fraction=clamp(0,(state.time or 0)/math.max(0.001,state.duration or 0),1)
+    local x=ax+(bx-ax)*fraction
+    -- Smooth dark footer behind the white controls, without changing the video.
+    local top=display.height-145*state.scale
+    for i=0,35 do
+        local y=top+(display.height-top)*i/36
+        ass:rect(0,y,display.width,top+(display.height-top)*(i+1)/36+1,
+            {color='000000',opacity=visibility*0.78*(i/35)^1.5})
+    end
+    ass:rect(ax,cy-thickness/2,bx,cy+thickness/2,{color='FFFFFF',opacity=visibility*0.28})
+    -- mpv's buffered ranges can be discontinuous, e.g. after seeking a network stream.
+    local cache=mp.get_property_native('demuxer-cache-state',{})
+    for _,range in ipairs(cache['seekable-ranges'] or {}) do
+        if state.duration and state.duration>0 then
+            local a=ax+(bx-ax)*clamp(0,range.start/state.duration,1)
+            local b=ax+(bx-ax)*clamp(0,range['end']/state.duration,1)
+            ass:rect(a,cy-thickness/2,b,cy+thickness/2,{color='FFFFFF',opacity=visibility*0.38})
+        end
+    end
+    ass:rect(ax,cy-thickness/2,x,cy+thickness/2,{color=fg,opacity=visibility})
+    for _,chapter in ipairs(state.chapters or {}) do
+        if chapter.time and state.duration and state.duration>0 then
+            local c=ax+(bx-ax)*chapter.time/state.duration
+            ass:rect(c-1*state.scale,cy-thickness/2,c+1*state.scale,cy+thickness/2,{color='000000',opacity=visibility*0.75})
+        end
+    end
+    if self.is_hovered or self.pressed then
+        ass:circle(x,cy,6*state.scale,{color=fg,opacity=visibility})
+        local t=self:get_time_at_x(cursor.x)
+        local label=string.format('%d:%02d',math.floor(t/60),math.floor(t)%60)
+        ass:txt(clamp(ax+30*state.scale,cursor.x,bx-30*state.scale),self.ay-10*state.scale,2,label,
+            {size=15*state.scale,color='FFFFFF',opacity=visibility,border=2*state.scale,border_color='000000'})
+        if not thumbnail.disabled and thumbnail.width>0 and thumbnail.height>0 and (not self.pressed or self.pressed.distance<5) then
+            local tx=round(clamp(ax,cursor.x-thumbnail.width/2,bx-thumbnail.width))
+            local ty=round(self.ay-36*state.scale-thumbnail.height)
+            local seconds=(state.rebase_start_time==false and state.start_time) and (t-state.start_time) or t
+            mp.commandv('script-message-to','thumbfast','thumb',seconds,tx,ty)
+            self.has_thumbnail=true
+        else self:clear_thumbnail() end
+    else self:clear_thumbnail() end
+    return ass
+end
+
 
 return Timeline

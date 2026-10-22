@@ -1,0 +1,8 @@
+[
+  {"alang": ["ru", "rus"], "slang": ["ru", "rus"], "condition": "sub.forced"},
+  {"alang": ["ru", "rus"], "slang": ["ru", "rus"], "whitelist": ["forced", "надписи", "форс"]},
+  {"alang": ["ru", "rus"], "slang": "no"},
+  {"alang": "*", "slang": ["ru", "rus"], "condition": "not sub.forced", "blacklist": ["forced", "надписи", "форс"]},
+  {"alang": "*", "slang": ["en", "eng"], "condition": "not sub.forced", "blacklist": ["sign", "forced"]},
+  {"alang": "*", "slang": "no"}
+]

@@ -1,7 +1,10 @@
+local neon_context=dofile(require('mp').command_native({'expand-path','~~/script-modules/neon-context.lua'}))
 local mp = require 'mp'
 local utils = require 'mp.utils'
 local profiles = {
     {id='native', title='Обычный — без шейдеров', hint='Рекомендуется по умолчанию'},
+    {id='sd480', title='480p → экран — мягкий апскейл', hint='FSRCNNX 8 · KrigBilateral · сглаживание градиентов'},
+    {id='hd720', title='720p → 1080p / 1440p — чёткий апскейл', hint='FSRCNNX 8 · KrigBilateral'},
     {id='ravu', title='RAVU — лёгкий апскейл', hint='Экономичный профиль'},
     {id='fsrcnnx8', title='FSRCNNX 8 + KrigBilateral', hint='Проверить плавность на вашем видео'},
     {id='fsrcnnx16', title='FSRCNNX 16 + KrigBilateral', hint='Тяжёлый, экспериментальный'},
@@ -52,7 +55,7 @@ local function toggle_sharpen()
     publish()
     mp.osd_message('SSimSuperRes: ' .. (sharpen and 'включён' or 'выключен'), 2)
 end
-mp.add_key_binding(nil, 'menu', function()
+local function quality_menu()
     local items = {}
     for _, p in ipairs(profiles) do
         items[#items+1] = {title=p.title, hint=p.hint, active=p.id == current,
@@ -60,21 +63,17 @@ mp.add_key_binding(nil, 'menu', function()
     end
     items[#items+1] = {title='Дополнительная резкость SSimSuperRes', active=sharpen,
         value={'script-message-to', 'quality', 'sharpen'}}
-    items[#items+1] = {title='Ручные настройки изображения',value={'script-binding','picture_controls/manual'}}
-    items[#items+1] = {title='Подсветка чёрных полос',value={'script-binding','picture_controls/ambient'}}
-    items[#items+1] = {title='До / после',value={'script-binding','picture_presets/compare'}}
-    items[#items+1] = {title='Мои пресеты',value={'script-binding','picture_presets/menu'}}
-    mp.commandv('script-message-to', 'uosc', 'open-menu', utils.format_json({
+    neon_context.open( utils.format_json({
         type='picture-quality', title='Апскейл и шейдеры — профили', items=items,
         footnote='Ctrl+0: сброс • Ctrl+i: статистика • F2: это меню'}))
-end)
+end
+mp.add_key_binding(nil,'menu',quality_menu)
 mp.register_script_message('select', select_profile)
 mp.register_script_message('sharpen', toggle_sharpen)
-mp.register_script_message('help', function()
-    mp.osd_message('Клик / Space / K — пауза\nДвойной клик / F — полный экран\nJ / L — ±10 с; ← / → — ±5 с\n↑ / ↓ — громкость; M — без звука\n0…9 — позиция; C — субтитры; T — кинотеатр\n< / > — скорость; , / . — по кадрам\nF2 — картинка; F3 — TorrServer; F5 — настройки\nF6 — LSFG; N — ночной звук\nB — добавить закладку; Shift+B — закладки\nCtrl+R — восстановить поток\nCtrl+I — статистика; Ctrl+0 — убрать шейдеры', 15)
-end)
+mp.register_script_message('help', function()mp.commandv('script-binding','player_help/menu')end)
 publish()
 mp.observe_property('glsl-shaders','native',function(_,paths)
+    local selected=mp.get_property_native('user-data/quality/profile',current)
     current,sharpen='native',false
     for _,path in ipairs(paths or {}) do
         if path:find('FSRCNNX_x2_16',1,true) then current='fsrcnnx16'
@@ -83,5 +82,8 @@ mp.observe_property('glsl-shaders','native',function(_,paths)
         elseif path:find('Anime4K',1,true) then current='anime' end
         if path:find('SSimSuperRes',1,true) then sharpen=true end
     end
+    if current=='fsrcnnx8' and (selected=='sd480' or selected=='hd720') then current=selected end
     publish()
 end)
+
+neon_context.register({menu=quality_menu})

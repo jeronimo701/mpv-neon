@@ -1,19 +1,16 @@
-# Сборка публичного установщика
+# Сборка публичного установщика v11.4
 
-Публичный пакет mpv Neon v6 без Lossless.dll. Файл: `mpv-Neon-Setup-v6-public.exe`. Наличие Lossless.dll в payload останавливает build.ps1. Запуск установщика оставлен пользователю; постоянная установка автоматически не выполняется.
+Требуются Windows x64, .NET Framework C# compiler и Inno Setup с x64compatible. Исходники: Launcher.cs, Setup.iss, Associations.iss, StopBundledTorrServer.ps1. Launcher.cs заменяет старый C launcher; native/lsfg-native.c остаётся отдельным необязательным модулем.
 
-Исходники: `mpv-neon.iss`, `build.ps1`, `install-notes.txt`. Для пересборки нужен официальный Inno Setup 7 и папка `mpv-portable` рядом с этой папкой. Пример PowerShell:
+Из корня репозитория:
 
 ```powershell
-.\build.ps1 -Compiler 'C:\Path\Inno Setup 7\ISCC.exe'
+.\prepare-public.ps1 -InputPlayerRoot 'D:/full-player-v11.4' -OutputPlayerRoot 'D:/build/mpv-v11.4-public'
+.\installer-source\build.ps1 -PlayerRoot 'D:/build/mpv-v11.4-public' -OutputRoot 'D:/build/release' -Compiler 'C:/Program Files (x86)/Inno Setup 6/ISCC.exe'
 ```
 
-Текущая сборка использовала Inno Setup 7.1.0 x64 из https://github.com/jrsoftware/issrc/releases/tag/is-7_1_0 . Перед запуском компилятора проверена действующая Authenticode-подпись Pyrsys B.V.; сам результат не имеет доверенной цифровой подписи.
+Подготовка создаёт новую папку, исключает Lossless.dll и личные данные, восстанавливает лицензии, сбрасывает TorrServer на loopback, пересчитывает defaults.sha256. Сборка проверяет публичный payload, компилирует launcher из исходников и затем установщик. Крупные зависимости не входят в Git: сверяйте docs/SOURCES.json. ZIP embedded Python — часть runtime, не пользовательский архив.
 
-По умолчанию устанавливает только для текущего пользователя. 30 расширений видео + 3 плейлиста: HKCU Capabilities, RegisteredApplications, собственные ProgID и OpenWithProgids. Не изменяет UserChoice, значения расширений по умолчанию, VLC/KMP и системный PATH. На финальном экране есть необязательный переход в настройки приложений по умолчанию.
+Для отдельной тестовой идентичности используйте -TestBuild. Настоящий выпуск сохраняет AppId mpvNeon.Personal для обновления v6. Установка для всех пользователей запрашивает UAC. Ветка runas и реальные GPU требуют ручной проверки; локальные тесты не подтверждают их автоматически.
 
-`-TestBuild` компилирует вариант с отдельным AppId/ProgID/именем exe и приложения. В тестах установка/обновление/удаление выполнялись в work, с проверкой хешей, сохранения настроек и неизменности текущих ассоциаций. Сценарии тестов и подробные логи — промежуточные файлы в work; описание проверок поставляется в `mpv-portable/docs/TESTED.md`.
-
-Существующие mpv.conf, input.conf, script-opts сохраняются при обновлении. Личные JSON/история/кеш/база TorrServer не входят в установщик. При удалении личные данные остаются в папке установки. Новые конфиги при будущих обновлениях потребуется объединять с пользовательскими вручную.
-
-Публичный пакет не содержит Lossless.dll. Без собственной совместимой лицензированной DLL пользователя LSFG не работает; прочие возможности не требуют этой библиотеки.
+VALIDATION.txt содержит результаты прежних личных проверок. Проверки именно публичной сборки записаны в корневом PUBLIC-VALIDATION.md.

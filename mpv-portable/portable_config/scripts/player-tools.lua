@@ -1,3 +1,4 @@
+local neon_context=dofile(require('mp').command_native({'expand-path','~~/script-modules/neon-context.lua'}))
 local mp = require 'mp'
 local utils = require 'mp.utils'
 local input = require 'mp.input'
@@ -8,8 +9,13 @@ local night = false
 local pending_reload
 local pip
 local click_timer
-local function open_menu(kind, title, items)
-    mp.commandv('script-message-to', 'uosc', 'open-menu', utils.format_json({type=kind,title=title,items=items}))
+local suppress_click_until=0
+local ignore_release=false
+local function click_delay()
+    return math.max(0.1,mp.get_property_number('input-doubleclick-time',300)/1000)
+end
+local function open_menu(kind, title, items, anchor)
+    neon_context.open( utils.format_json({type=kind,title=title,items=items,placement=anchor and 'controls',anchor=anchor}))
 end
 local function load_bookmarks()
     local file = io.open(bookmark_file, 'rb')
@@ -117,12 +123,21 @@ mp.register_event('file-loaded',function()
     mp.set_property_number('sub-delay',restore.sub_delay); mp.set_property_number('audio-delay',restore.audio_delay)
 end)
 mp.add_key_binding(nil,'night',night_toggle)
-mp.add_key_binding(nil,'click',function()
+mp.add_key_binding(nil,'click',function(event)
+    local kind=event and event.event or 'press'
+    if kind=='down' then
+        if mp.get_time()>suppress_click_until then ignore_release=false end
+        return
+    end
+    if kind~='up' and kind~='press' then return end
+    if ignore_release or mp.get_time()<suppress_click_until then ignore_release=false;return end
     if click_timer then click_timer:kill() end
-    click_timer=mp.add_timeout(0.3,function() click_timer=nil; mp.commandv('cycle','pause') end)
-end)
+    click_timer=mp.add_timeout(click_delay()+0.08,function() click_timer=nil; mp.commandv('cycle','pause') end)
+end,{complex=true})
 mp.add_key_binding(nil,'double-click',function()
     if click_timer then click_timer:kill(); click_timer=nil end
+    suppress_click_until=mp.get_time()+click_delay()
+    ignore_release=true
     mp.commandv('cycle','fullscreen')
 end)
 mp.add_key_binding(nil,'bookmarks',bookmark_menu)
@@ -130,7 +145,9 @@ mp.add_key_binding(nil,'bookmark-add',add_bookmark)
 mp.add_key_binding(nil,'reload',reload)
 mp.add_key_binding(nil,'settings',function()
     open_menu('player-settings','Настройки',{
-        {title='Оформление — Glass / Deck / Neon / Стандартный',icon='palette',value={'script-binding','ui_theme/menu'}},
+        {title='Оформление',icon='palette',value={'script-binding','ui_theme/menu'}},
+        {title='Отдельное окно плейлиста: '..(mp.get_property_native('user-data/playlist-window/enabled',false) and 'вкл.' or 'выкл.'),
+            active=mp.get_property_native('user-data/playlist-window/enabled',false),value={'script-binding','playlist_window/toggle'}},
         {title='Апскейл и шейдеры — профили · F2',icon='tune',value={'script-binding','quality/menu'}},
         {title='Ручные настройки изображения',value={'script-binding','picture_controls/manual'}},
         {title='Подсветка чёрных полос',value={'script-binding','picture_controls/ambient'}},
@@ -148,7 +165,7 @@ mp.add_key_binding(nil,'settings',function()
         {title='Качество сетевого потока',value={'script-binding','quality_menu/video_formats_toggle'}},
         {title='Закладки сцен',value={'script-binding','player_tools/bookmarks'}},
         {title='Переподключить поток',value={'script-binding','player_tools/reload'}},
-        {title='Горячие клавиши',value={'script-message-to','quality','help'}}})
+        {title='Справка по плееру',value={'script-binding','player_help/menu'}}})
 end)
 mp.add_key_binding(nil,'theater',function()
     mp.set_property_bool('window-maximized',not mp.get_property_bool('window-maximized',false))
@@ -183,3 +200,55 @@ end
 mp.observe_property('mute','bool',volume_button)
 mp.observe_property('volume','number',volume_button)
 mp.add_timeout(0.3,volume_button)
+
+neon_context.register({bookmarks=bookmark_menu})
+
+local function toggle_popup(kind,title,items,anchor)
+    if mp.get_property_native('user-data/uosc/menu/type') == kind then
+        mp.commandv('script-message-to','uosc','close-menu',kind)
+    else open_menu(kind,title,items,anchor) end
+end
+mp.add_key_binding(nil,'more',function()
+    toggle_popup('player-more','Ещё',{
+        {title='TorrServer',icon='cloud',value={'script-binding','torrserver/menu'}},
+        {title='Закладки',icon='bookmark',value={'script-binding','player_tools/bookmarks'}},
+        {title='Ночной звук',icon='bedtime',active=night,value={'script-binding','player_tools/night'}},
+        {title='Апскейл и шейдеры',icon='high_quality',hint='F2',value={'script-binding','quality/menu'}},
+        {title='Настройки',icon='settings',hint='F5',value={'script-binding','player_tools/settings'}}},'more_tools')
+end)
+mp.add_key_binding(nil,'speed-menu',function()
+    local current=mp.get_property_number('speed',1)
+    local items={}
+    for _,speed in ipairs({0.25,0.5,0.75,1,1.25,1.5,1.75,2,3})do
+        items[#items+1]={title=string.format('%g×',speed)..(speed==1 and ' — обычная' or ''),active=math.abs(speed-current)<0.001,value={'set','speed',tostring(speed)}}
+    end
+    toggle_popup('playback-speed','Скорость',items,'playback_speed')
+end)
+local function publish_speed()
+    local label=string.format('%g×',mp.get_property_number('speed',1))
+    mp.commandv('script-message-to','uosc','set-button','playback_speed',utils.format_json({icon='speed',label=label,tooltip='Скорость воспроизведения',command={'script-binding','player_tools/speed-menu'}}))
+end
+mp.observe_property('speed','number',publish_speed)
+mp.add_timeout(0.3,function()
+    publish_speed()
+    mp.commandv('script-message-to','uosc','set-button','more_tools',utils.format_json({icon='more_horiz',tooltip='Ещё',command={'script-binding','player_tools/more'}}))
+end)
+
+mp.add_key_binding(nil,'youtube-settings',function()
+    local speeds={}
+    for _,n in ipairs({0.25,0.5,0.75,1,1.25,1.5,1.75,2,3}) do
+        speeds[#speeds+1]={title=string.format('%g×',n),active=math.abs(mp.get_property_number('speed',1)-n)<0.001,value={'set','speed',tostring(n)}}
+    end
+    toggle_popup('youtube-settings','Настройки',{
+        {title='Скорость воспроизведения',hint=string.format('%g×',mp.get_property_number('speed',1)),value={'script-binding','player_tools/speed-menu'}},
+        {title='Качество видео / апскейл',value={'script-binding','quality/menu'}},
+        {title='Качество сетевого потока',value={'script-binding','quality_menu/video_formats_toggle'}},
+        {title='Субтитры',value={'script-binding','uosc/subtitles'}},
+        {title='Аудиодорожка',value={'script-binding','uosc/audio'}},
+        {title='Повтор видео',active=mp.get_property('loop-file')=='inf',value={'cycle-values','loop-file','no','inf'}},
+        {title='Подсветка фона',value={'script-binding','picture_controls/ambient'}},
+        {title='Все настройки',value={'script-binding','player_tools/settings'}}},'youtube_settings')
+end)
+mp.add_timeout(0.35,function()
+    mp.commandv('script-message-to','uosc','set-button','youtube_settings',utils.format_json({icon='settings',tooltip='Настройки',command={'script-binding','player_tools/youtube-settings'}}))
+end)

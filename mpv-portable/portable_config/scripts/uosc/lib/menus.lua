@@ -41,11 +41,7 @@ end
 
 ---@param opts? OpenCommandMenuOptions
 function toggle_menu_with_items(opts)
-	if Menu:is_open('menu') then
-		Menu:close()
-	else
-		open_command_menu({type = 'menu', items = get_menu_items(), search_submenus = true}, opts)
-	end
+	mp.commandv('script-binding','context_menu/menu')
 end
 
 ---@alias TrackEventRemove {type: 'remove' | 'delete', index: number; value: any;}

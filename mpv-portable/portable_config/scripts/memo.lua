@@ -1,3 +1,4 @@
+local neon_context=dofile(require('mp').command_native({'expand-path','~~/script-modules/neon-context.lua'}))
 -- memo.lua
 --
 -- A recent files menu for mpv
@@ -458,7 +459,7 @@ end
 
 function uosc_update()
     local json = mp.utils.format_json(menu_data) or "{}"
-    mp.commandv("script-message-to", "uosc", menu_shown and "update-menu" or "open-menu", json)
+    neon_context.open(json)
 end
 
 function update_dimensions()
@@ -1437,3 +1438,12 @@ end)
 
 mp.register_event("file-loaded", file_load)
 mp.register_idle(idle)
+
+neon_context.register({history=function()
+    local was_shown,was_exhausted=menu_shown,event_loop_exhausted
+    menu_shown=false;event_loop_exhausted=false
+    local items=show_history(20,false,false,false,true) or {}
+    menu_shown=was_shown;event_loop_exhausted=was_exhausted
+    if #items==0 then items={{title='История пока пуста',selectable=false}} end
+    neon_context.open(mp.utils.format_json({type='memo-history',title='Недавние файлы',items=items}))
+end})

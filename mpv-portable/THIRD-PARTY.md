@@ -5,6 +5,7 @@ mpv Neon — сборка нескольких проектов, а не нов�
 Точные версии/ревизии и первичные ссылки: `mpv-portable/docs/SOURCES.json`. Прилагаемые тексты: `mpv-portable/docs/licenses/`, Python LICENSE.txt в готовой сборке.
 
 - mpv: https://github.com/mpv-player/mpv/tree/6a262d11f6 ; бинарная сборка https://github.com/shinchiro/mpv-winbuild-cmake/releases/tag/20261019 ; GPL и условия конкретных компонентов сборки.
+- Библиотеки движка по его --version: FFmpeg `N-127683-gc2bbf2b83`, исходники https://github.com/FFmpeg/FFmpeg/tree/c2bbf2b83 ; libplacebo `v7.377.0 (v7.360.0-172-gccb74c6-dirty)`, источник https://code.videolan.org/videolan/libplacebo . Движок сообщает dirty-суффикс libplacebo; полная воспроизводимость бинарника из одних этих идентификаторов не заявляется. Рецепты/патчи сборщика: https://github.com/shinchiro/mpv-winbuild-cmake . Остальные транзитивные зависимости и условия проверяются по этой конкретной сборке и её исходникам, не подменяются лицензией launcher.
 - uosc 5.13.0: https://github.com/tomasklaen/uosc/tree/5.13.0 ; LGPL, локально изменены темы/меню/громкость. Исходники изменений включены.
 - thumbfast, memo, quality-menu, mpv-sub-select, mpv_sponsorblock: отдельные лицензии и commit hashes в manifest.
 - FSRCNNX, KrigBilateral, SSimSuperRes, Anime4K, mpv-prescalers: исходники шейдеров и тексты лицензий сохранены.

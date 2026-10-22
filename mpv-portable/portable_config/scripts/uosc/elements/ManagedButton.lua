@@ -11,6 +11,7 @@ function ManagedButton:new(id, props) return Class.new(self, id, props) --[[@as 
 ---@param id string
 ---@param props ManagedButtonProps
 function ManagedButton:init(id, props)
+	self.name = props.name
 	---@type string | table | nil
 	self.command = nil
 	---@type boolean
@@ -24,12 +25,19 @@ end
 
 function ManagedButton:update(data)
 	local hide_before = self.hide
-	for _, prop in ipairs({'icon', 'active', 'badge', 'command', 'tooltip', 'hide'}) do
+	for _, prop in ipairs({'icon', 'label', 'active', 'badge', 'command', 'tooltip', 'hide'}) do
 		self[prop] = data[prop]
 	end
 	self.is_clickable = self.command ~= nil
 	if self.hide ~= hide_before and self.on_hide then
 		self.on_hide(self.hide)
+	end
+end
+
+function ManagedButton:on_coordinates()
+	Button.on_coordinates(self)
+	if self.name == 'playback_speed' or self.name == 'more_tools' or self.name == 'youtube_settings' then
+		mp.set_property_native('user-data/ui-theme/'..self.name..'-box',{ax=self.ax,ay=self.ay,bx=self.bx,by=self.by})
 	end
 end
 

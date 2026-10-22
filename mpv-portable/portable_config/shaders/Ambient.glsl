@@ -34,6 +34,11 @@
 //!MINIMUM 0
 //!MAXIMUM 2
 0.3
+//!PARAM ambient_edge
+//!TYPE float
+//!MINIMUM 0
+//!MAXIMUM 1
+0.5
 //!PARAM ambient_clock
 //!TYPE DYNAMIC float
 0
@@ -147,7 +152,14 @@ vec4 hook() {
     vec2 offset=(canvas-image_size)*0.5;
     vec2 point=HOOKED_pos*canvas;
     vec2 uv=(point-offset)/image_size;
-    if(all(greaterThanEqual(uv,vec2(0))) && all(lessThanEqual(uv,vec2(1)))) return HOOKED_tex(uv);
+    bool inside=all(greaterThanEqual(uv,vec2(0))) && all(lessThanEqual(uv,vec2(1)));
+    // Feather only the sides adjoining the ambient bars. Keep the centre intact.
+    vec2 edge=min(uv,1.0-uv)*image_size;
+    float seam=offset.x>0.5?edge.x:edge.y;
+    float axis=offset.x>0.5?canvas.x:canvas.y;
+    float feather=min((offset.x>0.5?image_size.x:image_size.y)*0.08,
+        axis*0.05*ambient_edge);
+    if(inside && (feather<0.001 || seam>=feather)) return HOOKED_tex(uv);
     vec2 outside=max(max(-uv,uv-1.0),vec2(0))*image_size;
     float distance=max(outside.x/max(offset.x,0.001),outside.y/max(offset.y,0.001));
     float reach=max(0.0001,ambient_coverage);
@@ -167,5 +179,21 @@ vec4 hook() {
         color=trail/9.0;
         fade*=0.65+0.35*cos(distance*18.8495559-ambient_clock*4.0);
     }
-    return vec4(color*ambient_brightness*fade,1.0);
+    vec3 background=color*ambient_brightness*fade;
+    if(inside) {
+        float blend=smoothstep(0.0,feather,max(seam,0.0));
+        // Blur the film edge too, so detail returns gradually away from the seam.
+        vec2 radius=vec2(feather*0.22*(1.0-blend))/image_size;
+        vec3 soft=HOOKED_tex(uv).rgb*4.0;
+        soft+=HOOKED_tex(clamp(uv+vec2(radius.x,0),vec2(0),vec2(1))).rgb*2.0;
+        soft+=HOOKED_tex(clamp(uv-vec2(radius.x,0),vec2(0),vec2(1))).rgb*2.0;
+        soft+=HOOKED_tex(clamp(uv+vec2(0,radius.y),vec2(0),vec2(1))).rgb*2.0;
+        soft+=HOOKED_tex(clamp(uv-vec2(0,radius.y),vec2(0),vec2(1))).rgb*2.0;
+        soft+=HOOKED_tex(clamp(uv+radius,vec2(0),vec2(1))).rgb;
+        soft+=HOOKED_tex(clamp(uv-radius,vec2(0),vec2(1))).rgb;
+        soft+=HOOKED_tex(clamp(uv+vec2(radius.x,-radius.y),vec2(0),vec2(1))).rgb;
+        soft+=HOOKED_tex(clamp(uv+vec2(-radius.x,radius.y),vec2(0),vec2(1))).rgb;
+        return vec4(mix(background,soft/16.0,blend),1.0);
+    }
+    return vec4(background,1.0);
 }

@@ -1,3 +1,4 @@
+local neon_context=dofile(require('mp').command_native({'expand-path','~~/script-modules/neon-context.lua'}))
 -- TorrServer Matrix client. API requests are asynchronous; arguments bypass a shell.
 local mp = require 'mp'
 local utils = require 'mp.utils'
@@ -41,7 +42,7 @@ local function ensure_server(callback)
 end
 local serial = 0
 local function menu(title, items, footnote)
-    mp.commandv('script-message-to', 'uosc', 'open-menu', utils.format_json({
+    neon_context.open( utils.format_json({
         type='torrserver', title=title, items=items, footnote=footnote}))
 end
 local function info(text)

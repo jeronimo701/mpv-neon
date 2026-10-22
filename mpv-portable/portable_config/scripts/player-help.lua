@@ -1,0 +1,84 @@
+local neon_context=dofile(require('mp').command_native({'expand-path','~~/script-modules/neon-context.lua'}))
+local mp=require 'mp'
+local utils=require 'mp.utils'
+local topics={
+    playback={title='Управление воспроизведением',lines={
+        'Один клик по видео / Space / K — пауза и продолжение.',
+        'Двойной клик / F — полный экран; Esc — выйти из него.',
+        '← / → — ±5 секунд; J / L — ±10 секунд.',
+        '↑ / ↓ и колесо — громкость; M — выключить звук.',
+        'Цифры 0…9 — переход к 0…90% длительности.',
+        '< / > — скорость; , / . — предыдущий / следующий кадр.',
+        'Кнопка «1×» внизу — выбор скорости воспроизведения.',
+        'T — развернуть окно; I — мини-плеер поверх окон.'}},
+    quality={title='Апскейл и качество изображения',lines={
+        'F2 — выбрать профиль для исходника 480p или 720p.',
+        'Разверните окно: апскейл действует при увеличении кадра.',
+        '480p: FSRCNNX 8 + KrigBilateral, умеренный deband.',
+        '720p: FSRCNNX 8 + KrigBilateral без deband.',
+        'RAVU — более лёгкий вариант; Anime4K — для анимации.',
+        'Профиль не меняет разрешение скачиваемого потока.',
+        'F4 — качество сетевого видео, если источник его поддерживает.',
+        'F7 — цвет, резкость и масштабирование; F9 — до / после.',
+        'F11 — сохранить и загрузить свои пресеты изображения.',
+        'Ctrl+0 — убрать шейдеры; Ctrl+I — статистика.'},action={'Открыть профили апскейла','quality/menu'}},
+    ambient={title='Подсветка полос и мягкость границы',lines={
+        'F8 — режим подсветки: сияние, кино, эхо или зеркало.',
+        'Яркость — интенсивность фона; охват — ширина свечения.',
+        'Размытие — насколько размыта сама подсветка.',
+        'Сглаживание границы — отдельный ползунок перехода.',
+        '0% — жёсткая граница; 100% — широкий мягкий переход.',
+        'Тяните ползунок мышью или используйте ← / → и колесо.',
+        'Enter / Esc закрывают ползунок; значение сохраняется.',
+        'Сглаживание затрагивает узкую кромку видео у полос.',
+        '«Успевает за кадром» — скорость реакции фонового света.',
+        'Полосы, уже записанные в видео, подсветка не распознаёт.'},action={'Открыть подсветку','ambient/menu'}},
+    playlist={title='Плейлист: меню и отдельное окно',lines={
+        'P — быстрый плейлист внутри видео.',
+        'F5 → Отдельное окно плейлиста — включить или выключить.',
+        'Ctrl+P — тот же переключатель без меню.',
+        'Окно можно перемещать и держать на другом мониторе.',
+        'Двойной клик по строке / Enter — воспроизвести файл.',
+        '«+ Файлы» или перетаскивание — добавить файлы.',
+        '↑ / ↓ внизу окна — переставить выбранный пункт.',
+        '«Убрать» / Delete удаляют пункт списка, файлы остаются.',
+        'Закрытие окна выключает его отображение.',
+        'Выбор отображения сохраняется между запусками.'},action={'Включить / выключить окно плейлиста','playlist_window/toggle'}},
+    extras={title='Оформление, звук и другие функции',lines={
+        '«Ещё» (⋯) внизу — TorrServer, закладки, ночной звук и настройки.',
+        'F12 — выбор тем, включая YouTube с красным прогрессом.',
+        'YouTube: шестерёнка — скорость, качество, дорожки и повтор.',
+        'YouTube: время внизу — прошедшее / полная длительность.',
+        'A — аудиодорожки; S — субтитры; C — показать / скрыть их.',
+        'N — ночной звук, уменьшающий перепады громкости.',
+        'F6 — плавность / LSFG; начните с 60 кадров/с.',
+        'Тяжёлые шейдеры и LSFG увеличивают нагрузку на GPU.',
+        'F10 — таймер сна: пауза или закрытие только плеера.',
+        'B — добавить закладку; Shift+B — открыть список.',
+        'H — история просмотра; Ctrl+G — главы.',
+        'Ctrl+R — переподключить поток с сохранением позиции.',
+        'F3 — TorrServer; Ctrl+T — добавить magnet / ссылку.'}},
+}
+local function open(title,items)
+    neon_context.open(utils.format_json({type='player-help',title=title,items=items,
+        footnote='mpv Neon · Справка · F1'}))
+end
+local function menu()
+    local items={}
+    for _,id in ipairs({'playback','quality','ambient','playlist','extras'}) do
+        items[#items+1]={title=topics[id].title,value={'script-message-to','player_help','topic',id}}
+    end
+    open('Справка по плееру',items)
+end
+local function topic(id)
+    local t=topics[id];if not t then return end
+    local items={}
+    for _,line in ipairs(t.lines) do items[#items+1]={title=line,selectable=false} end
+    if t.action then items[#items+1]={title=t.action[1],value={'script-binding',t.action[2]}} end
+    items[#items+1]={title='← Все разделы справки',value={'script-binding','player_help/menu'}}
+    open(t.title,items)
+end
+mp.register_script_message('topic',topic)
+mp.add_key_binding(nil,'menu',menu)
+
+neon_context.register({menu=menu,playback=function()topic('playback')end,quality=function()topic('quality')end,ambient=function()topic('ambient')end,playlist=function()topic('playlist')end,extras=function()topic('extras')end})

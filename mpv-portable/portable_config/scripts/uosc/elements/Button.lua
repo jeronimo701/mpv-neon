@@ -12,6 +12,7 @@ function Button:new(id, props) return Class.new(self, id, props) --[[@as Button]
 ---@param props ButtonProps
 function Button:init(id, props)
 	self.icon = props.icon
+	self.label = props.label
 	self.active = props.active
 	self.tooltip = props.tooltip
 	self.badge = props.badge
@@ -41,13 +42,15 @@ function Button:render()
 	local ass = assdraw.ass_new()
 	local is_clickable = self.is_clickable and self.on_click ~= nil
 	local is_hover = self.proximity_raw <= 0
-	local foreground = self.active and self.background or self.foreground
-	local background = self.active and self.foreground or self.background
-	local background_opacity = self.active and 1 or config.opacity.controls
+	local youtube=options.menu_style=='youtube'
+	local foreground = youtube and bgt or (self.active and self.background or self.foreground)
+	local background = youtube and 'FFFFFF' or (self.active and self.foreground or self.background)
+	local background_opacity = self.active and (youtube and 0.16 or 1) or config.opacity.controls
 
 	if is_hover and is_clickable and background_opacity < 0.3 then background_opacity = 0.3 end
 
 	-- Background
+	if youtube and self.active then ass:rect(self.ax+6*state.scale,self.by-2*state.scale,self.bx-6*state.scale,self.by,{color=fg,opacity=visibility}) end
 	if background_opacity > 0 then
 		ass:rect(self.ax, self.ay, self.bx, self.by, {
 			color = (self.active or not is_hover) and background or foreground,
@@ -86,13 +89,17 @@ function Button:render()
 
 	-- Icon
 	local x, y = round(self.ax + (self.bx - self.ax) / 2), round(self.ay + (self.by - self.ay) / 2)
-	ass:icon(x, y, self.font_size, self.icon, {
+	if self.label then
+		ass:txt(x,y,5,ass_escape(tostring(self.label)),{size=self.font_size*0.72,color=foreground,opacity=visibility,
+			border=self.active and 0 or options.text_border*state.scale,border_color=youtube and '000000' or background})
+	else ass:icon(x, y, self.font_size, self.icon, {
 		color = foreground,
 		border = self.active and 0 or options.text_border * state.scale,
-		border_color = background,
+		border_color = youtube and '000000' or background,
 		opacity = visibility,
 		clip = icon_clip,
 	})
+	end
 
 	return ass
 end

@@ -1008,14 +1008,26 @@ end
 --[[ RENDERING ]]
 
 -- Local branding: raw premultiplied BGRA, scaled by gpu-next, hidden behind menus.
-local idle_logo_path = mp.command_native({'expand-path', '~~/../assets/player-neon-07.bgra'})
-local idle_logo_available = utils.file_info(idle_logo_path) ~= nil
+local idle_logo_path = utils.join_path(mp.get_script_directory(), 'assets/player-neon-07.bgra')
 local idle_logo_layout
+local idle_logo_retry_at = 0
+local idle_logo_last_status
+local function idle_logo_status(status)
+	if status ~= idle_logo_last_status then
+		mp.set_property_native('user-data/player/idle-logo', {state=status, path=idle_logo_path})
+		idle_logo_last_status = status
+	end
+end
 local function idle_logo(show, x, y, size)
-	if not idle_logo_available then return false end
 	if not show then
 		if idle_logo_layout then mp.commandv('overlay-remove', '62'); idle_logo_layout = nil end
 		return true
+	end
+	if mp.get_time() < idle_logo_retry_at then return false end
+	if not utils.file_info(idle_logo_path) then
+		idle_logo_status('missing')
+		idle_logo_retry_at = mp.get_time() + 1
+		return false
 	end
 	size = math.floor(size * 1.25)
 	x, y = math.floor(x - size / 2), math.floor(y - size / 2)
@@ -1023,8 +1035,14 @@ local function idle_logo(show, x, y, size)
 	if layout ~= idle_logo_layout then
 		local result, err = mp.command_native({name='overlay-add', id=62, x=x, y=y, file=idle_logo_path,
 			offset=0, fmt='bgra', w=256, h=256, stride=1024, dw=size, dh=size})
-		if err then idle_logo_available = false; return false end
+		if err then
+			idle_logo_status('retrying')
+			idle_logo_retry_at = mp.get_time() + 0.5
+			mp.add_timeout(0.55, function() request_render() end)
+			return false
+		end
 		idle_logo_layout = layout
+		idle_logo_status('rendered')
 	end
 	return true
 end

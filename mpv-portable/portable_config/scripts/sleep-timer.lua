@@ -1,3 +1,4 @@
+local neon_context=dofile(require('mp').command_native({'expand-path','~~/script-modules/neon-context.lua'}))
 -- Player-only timer: never shuts down or suspends Windows.
 local mp=require 'mp'
 local utils=require 'mp.utils'
@@ -37,7 +38,7 @@ local function menu()
     for _,minutes in ipairs({15,30,45,60,90,120}) do items[#items+1]={title='Через '..minutes..' минут',value={'script-message-to','sleep_timer','start',tostring(minutes)}} end
     items[#items+1]={title='Указать время…',value={'script-binding','sleep_timer/custom'}}
     items[#items+1]={title='Отменить таймер',value={'script-binding','sleep_timer/cancel'}}
-    mp.commandv('script-message-to','uosc','open-menu',utils.format_json({type='sleep-timer',title='Таймер сна',items=items,
+    neon_context.open(utils.format_json({type='sleep-timer',title='Таймер сна',items=items,
         footnote='Отсчёт идёт и на паузе • Не выключает компьютер • После перезапуска сбрасывается • F10'}))
 end
 mp.register_script_message('start',start)
@@ -51,3 +52,5 @@ mp.add_periodic_timer(1,function()
     if mp.get_property_native('user-data/uosc/menu/type')=='sleep-timer' then menu() end
 end)
 publish()
+
+neon_context.register({menu=menu})

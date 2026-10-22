@@ -1,3 +1,4 @@
+local neon_context=dofile(require('mp').command_native({'expand-path','~~/script-modules/neon-context.lua'}))
 -- GPU-only controls: preserve hardware decoding and video aspect ratio.
 local mp=require 'mp'
 local utils=require 'mp.utils'
@@ -43,7 +44,7 @@ local function item(title,key,values)
     return {title=title..': '..tostring(current),items=items}
 end
 local function open(kind,title,items,footnote)
-    mp.commandv('script-message-to','uosc','open-menu',utils.format_json({type=kind,title=title,items=items,footnote=footnote}))
+    neon_context.open(utils.format_json({type=kind,title=title,items=items,footnote=footnote}))
 end
 local function ambient()
     mp.commandv('script-binding','ambient/menu')
@@ -86,7 +87,7 @@ mp.register_script_message('reset',function()
     if mp.get_property_native('user-data/picture/ab')=='before' then mp.commandv('script-message-to','picture_presets','picture-action','reset');return end
     for k,v in pairs(numeric) do set(k,v[3]) end
     for k,v in pairs(enum_defaults) do set(k,v) end
-    mp.commandv('script-message-to','ambient','apply',utils.format_json({mode=0,brightness=80,coverage=80,blur=32,reaction='smooth'}))
+    mp.commandv('script-message-to','ambient','apply',utils.format_json({mode=0,brightness=80,coverage=80,blur=32,edge=50,reaction='smooth'}))
     mp.commandv('script-message-to','quality','select','native'); mp.osd_message('Изображение сброшено',2)
 end)
 mp.register_script_message('restore-json',function(json)
@@ -97,3 +98,5 @@ mp.register_script_message('restore-json',function(json)
 end)
 mp.add_key_binding(nil,'manual',manual)
 mp.add_key_binding(nil,'ambient',ambient)
+
+neon_context.register({manual=manual})

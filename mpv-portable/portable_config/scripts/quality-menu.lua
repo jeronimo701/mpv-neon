@@ -1,3 +1,4 @@
+local neon_context=dofile(require('mp').command_native({'expand-path','~~/script-modules/neon-context.lua'}))
 -- quality-menu 4.2.1 - 2025-Jun-29
 -- https://github.com/christoph-heinrich/mpv-quality-menu
 --
@@ -779,8 +780,8 @@ local function uosc_show_menu(menu, menu_type)
     -- always using update wouldn't work, because it doesn't support the on_close command
     -- therefore opening a different kind requires `open-menu`
     -- while updating the same kind requires `update-menu`
-    if open_menu_state == menu_type then mp.commandv('script-message-to', 'uosc', 'update-menu', json)
-    else mp.commandv('script-message-to', 'uosc', 'open-menu', json) end
+    if open_menu_state == menu_type then neon_context.update( json)
+    else neon_context.open( json) end
 end
 
 ---@param formats Format[]

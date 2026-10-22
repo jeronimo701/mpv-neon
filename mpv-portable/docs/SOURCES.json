@@ -1,7 +1,7 @@
 {
-  "built": "2026-10-19",
-  "version": "6",
-  "purpose": "Public mpv Neon v6; excludes Lossless.dll and personal runtime data",
+  "built": "2026-10-22",
+  "version": "11.4",
+  "purpose": "Public mpv Neon v11.4; excludes Lossless.dll and personal runtime data",
   "components": [
     {
       "component": "mpv",
@@ -114,17 +114,32 @@
     },
     {
       "component": "Glass/Deck themes and horizontal volume",
-      "version": "6",
+      "version": "11.4",
       "sources": [
         "portable_config/scripts/ui-theme.lua",
         "portable_config/scripts/uosc/elements/HorizontalVolume.lua"
       ],
       "local_uosc_changes": [
         "main.lua",
+        "elements/Button.lua",
         "elements/Controls.lua",
-        "elements/Menu.lua"
+        "elements/ManagedButton.lua",
+        "elements/Menu.lua",
+        "elements/HorizontalVolume.lua",
+        "elements/Timeline.lua",
+        "elements/YoutubeTime.lua",
+        "intl/ru.json",
+        "lib/menus.lua",
+        "lib/utils.lua",
+        "assets/player-neon-07.bgra"
       ],
       "reference": "https://github.com/tomasklaen/uosc/tree/5.13.0"
     }
+  ],
+  "local_changes": [
+    "SponsorBlock settings/menu and skip modes: portable_config/scripts/sponsorblock.lua",
+    "External audio: portable_config/scripts/external-audio.lua",
+    "Russian layout: portable_config/scripts/russian-layout.lua",
+    "Profile-aware launcher and installer: installer-source/ in source repository"
   ]
 }

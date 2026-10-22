@@ -147,7 +147,8 @@ function Menu:init(data, callback, opts)
 
 	self:tween_property('opacity', 0, 1)
 	self:enable_key_bindings()
-	Elements:maybe('curtain', 'register', self.id)
+	if data.placement == 'controls' then Elements:maybe('curtain', 'unregister', self.id)
+	else Elements:maybe('curtain', 'register', self.id) end
 
 	if data.search_submit then
 		-- We have to defer this so that menu callbacks don't fire before the menu
@@ -337,14 +338,16 @@ function Menu:update_dimensions()
 	-- and dumb titles with no search inputs. It could use a refactor.
 	local margin = round(self.item_height / 2)
 	local external_buttons_reserve = display.width / self.item_height > 14 and self.scroll_step * 6 - margin * 2 or 0
+	if self.type == 'neon-context' then external_buttons_reserve = 0 end
 	local width_available = display.width - margin * 2 - self.padding * 2 - external_buttons_reserve
 	local height_available = display.height - margin * 2 - self.padding * 2
 	local min_width = math.min(self.min_width, width_available)
 
 	for _, menu in ipairs(self.all) do
 		local width = math.max(menu.search and menu.search.max_width or 0, menu.max_width)
-		menu.width = round(clamp(min_width, width, width_available))
-		local title_height = (menu.is_root and menu.title or menu.search) and
+		local width_limit = width_available
+		menu.width = round(clamp(math.min(min_width, width_limit), width, width_limit))
+		local title_height = ((menu.is_root or self.type == 'neon-context') and menu.title or menu.search) and
 			self.scroll_step + self.separator_size + 1 or 0
 		local footnote_height = self.font_size * 1.5
 		local max_height = height_available - title_height - footnote_height
@@ -355,6 +358,10 @@ function Menu:update_dimensions()
 			menu.search and math.min(menu.search.min_top, menu.search.source.top) or height_available,
 			round((height_available - menu.height + title_height) / 2)
 		)
+		if self.root.placement == 'controls' then
+			local controls_y = Elements.controls and Elements.controls.ay or display.height - 80
+			menu.top = math.max(title_height + margin + self.padding, controls_y - self.padding * 2 - menu.height)
+		end
 		if menu.search then
 			menu.search.min_top = math.min(menu.search.min_top, menu.top)
 			menu.search.max_width = math.max(menu.search.max_width, menu.width)
@@ -369,10 +376,25 @@ end
 -- Updates element coordinates to match padding box of currently open (sub)menu.
 function Menu:update_coordinates()
 	local ax = round((display.width - self.current.width) / 2 - self.padding) + self.offset_x
+	if self.root.placement == 'controls' then
+		local anchor_x = display.width - self.current.width / 2 - self.padding * 2
+		for _,control in ipairs(Elements.controls and Elements.controls.controls or {}) do
+			local element = control.element
+			if element and element.name == self.root.anchor then anchor_x = (element.ax + element.bx) / 2;break end
+		end
+		ax = round(clamp(8, anchor_x - self.current.width / 2 - self.padding, display.width - self.current.width - self.padding * 2 - 8))
+	end
 	self:set_coordinates(
 		ax, self.current.top - self.padding,
 		ax + self.current.width + self.padding * 2, self.current.top + self.current.height + self.padding
 	)
+	if self.type == 'neon-context' then
+		mp.set_property_native('user-data/neon-context/view', {id=self.current.id,ax=self.ax,bx=self.bx,
+			top=self.current.top,height=self.current.height,step=self.scroll_step,parent=self.current.parent_menu and self.current.parent_menu.id})
+	end
+	if self.root.placement == 'controls' then
+		mp.set_property_native('user-data/ui-theme/popup', {type=self.type,ax=self.ax,bx=self.bx,top=self.current.top,height=self.current.height,step=self.scroll_step})
+	end
 end
 
 function Menu:reset_navigation()
@@ -570,6 +592,14 @@ end
 function Menu:activate_menu(id)
 	local menu = self:get_menu(id)
 	if menu then
+		if self.type == 'neon-context' then
+			self.offset_x = 0
+			if self.current and self.current.id ~= menu.id then
+				self.context_transition_start = mp.get_time()
+				self.context_transition_id = menu.id
+				self.context_transition_direction = menu.parent_menu == self.current and 1 or -1
+			end
+		end
 		self.current = menu
 		self:update_coordinates()
 		self:reset_navigation()
@@ -611,8 +641,21 @@ function Menu:slide_in_menu(id, x)
 	local menu = self:get_menu(id)
 	if not menu then return end
 	self:activate_menu(id)
-	self:tween(-(display.width / 2 - menu.width / 2 - x), 0, function(offset) self:set_offset_x(offset) end)
+	if self.type ~= 'neon-context' then
+		self:tween(-(display.width / 2 - menu.width / 2 - x), 0, function(offset) self:set_offset_x(offset) end)
+	end
 	self.opacity = 1 -- in case tween above canceled fade in animation
+end
+
+-- Contextual side panels are directly clickable, including a visible parent.
+function Menu:context_pointer_activate(menu, shortcut)
+	self:activate_menu(menu.id)
+	if cursor.y < menu.top or cursor.y > menu.top + menu.height then return end
+	local index = math.floor((cursor.y - menu.top + menu.scroll_y) / self.scroll_step) + 1
+	local item = menu.items[index]
+	if not item or item.selectable == false then return end
+	self:select_index(index)
+	self:activate_selected_item(shortcut, true)
 end
 
 function Menu:back()
@@ -640,7 +683,9 @@ function Menu:activate_selected_item(shortcut, is_pointer)
 				self:select_index(1, item.id)
 			end
 			self:activate_menu(item.id)
-			self:tween(self.offset_x + menu.width / 2, 0, function(offset) self:set_offset_x(offset) end)
+			if self.type ~= 'neon-context' then
+				self:tween(self.offset_x + menu.width / 2, 0, function(offset) self:set_offset_x(offset) end)
+			end
 			self.opacity = 1 -- in case tween above canceled fade in animation
 		else
 			local actions = item.actions or menu.item_actions
@@ -870,7 +915,7 @@ function search_items(items, query, recursive, prefix)
 
 		if item.selectable ~= false and not (item.items and recursive) and not seen[item] then
 			local bold = item.bold or options.font_bold
-			local font_color = item.active and fgt or bgt
+			local font_color = options.menu_style=='youtube' and bgt or (item.active and fgt or bgt)
 			local ass_safe_title = highlight_match(matched_title, positions, font_color, bold) or nil
 			local new_item = table_assign({}, item)
 			new_item.title = prefixed_title
@@ -885,7 +930,7 @@ function search_items(items, query, recursive, prefix)
 		local title = item.title and item.title:lower()
 		local hint = item.hint and item.hint:lower()
 		local bold = item.bold or options.font_bold
-		local font_color = item.active and fgt or bgt
+		local font_color = options.menu_style=='youtube' and bgt or (item.active and fgt or bgt)
 		local ass_safe_title = nil
 		local prefixed_title = prefix and prefix .. ' / ' .. (item.title or '') or item.title
 		if item.selectable ~= false and not (item.items and recursive) and not seen[item] then
@@ -1385,15 +1430,24 @@ function Menu:render()
 	local function draw_menu(menu, x, pos)
 		local is_current, is_parent, is_submenu = pos == 0, pos < 0, pos > 0
 		local menu_opacity = (pos == 0 and 1 or config.opacity.submenu ^ math.abs(pos)) * self.opacity
+		local panel_top = menu.top
+		if self.type == 'neon-context' and is_current and self.context_transition_id == menu.id then
+			local duration = math.min(240, options.animation_duration) / 1000
+			local progress = duration > 0 and clamp(0, (mp.get_time() - self.context_transition_start) / duration, 1) or 1
+			local eased = 1 - (1 - progress) ^ 3
+			panel_top = panel_top + (1 - eased) * 8 * state.scale * self.context_transition_direction
+			menu_opacity = menu_opacity * (0.35 + 0.65 * eased)
+			if progress < 1 then request_render() end
+		end
 		-- Scrollable content area coordinates
 		local content_rect = {
 			ax = x + self.padding,
-			ay = menu.top,
+			ay = panel_top,
 			bx = x + self.padding + menu.width,
-			by = menu.top + menu.height,
+			by = panel_top + menu.height,
 		}
 		-- local ax, ay, bx, by = x + self.padding, menu.top, x + menu.width + self.padding, menu.top + menu.height
-		local draw_title = menu.is_root and menu.title or menu.search
+		local draw_title = (menu.is_root or self.type == 'neon-context') and menu.title or menu.search
 		local scroll_clip = '\\clip(0,' .. content_rect.ay .. ',' .. display.width .. ',' .. content_rect.by .. ')'
 		local start_index = math.floor(menu.scroll_y / self.scroll_step) + 1
 		local end_index = math.ceil((menu.scroll_y + menu.height) / self.scroll_step)
@@ -1414,7 +1468,7 @@ function Menu:render()
 		end
 		ass:rect(bg_rect.ax, bg_rect.ay, bg_rect.bx, bg_rect.by, {
 			color = bg,
-			opacity = {primary = menu_opacity * config.opacity.menu, border = menu_opacity * (glass and 0.28 or 0.15)},
+			opacity = {primary = menu_opacity * (self.type == 'neon-context' and is_current and math.max(0.97, config.opacity.menu) or config.opacity.menu), border = menu_opacity * (glass and 0.28 or 0.15)},
 			border = (glass or deck) and 1 or 0, border_color = fg,
 			radius = panel_radius,
 		})
@@ -1426,8 +1480,11 @@ function Menu:render()
 			})
 		end
 
-		if is_parent then
-			cursor:zone('primary_down', bg_rect, self:create_action(function() self:slide_in_menu(menu.id, x) end))
+		if is_parent and self.type ~= 'neon-context' then
+			cursor:zone('primary_down', bg_rect, self:create_action(function(shortcut)
+				if self.type == 'neon-context' then self:context_pointer_activate(menu, shortcut)
+				else self:slide_in_menu(menu.id, x) end
+			end))
 		end
 
 		-- Scrollbar
@@ -1443,10 +1500,11 @@ function Menu:render()
 		-- Draw submenu if selected
 		local submenu_rect, current_item = nil, is_current and menu.selected_index and menu.items[menu.selected_index]
 		local submenu_is_hovered = false
-		if current_item and current_item.items then
+		if current_item and current_item.items and self.type ~= 'neon-context' then
 			submenu_rect = draw_menu(current_item --[[@as MenuStack]], bg_rect.bx + self.gap, 1)
 			cursor:zone('primary_down', submenu_rect, self:create_action(function(shortcut)
-				self:activate_selected_item(shortcut, true)
+				if self.type == 'neon-context' then self:context_pointer_activate(current_item, shortcut)
+				else self:activate_selected_item(shortcut, true) end
 			end))
 		end
 
@@ -1489,7 +1547,7 @@ function Menu:render()
 			local next_item = menu.items[index + 1]
 			local next_is_active = next_item and next_item.active
 			local next_has_background = menu.selected_index == index + 1 or next_is_active
-			local font_color = item.active and fgt or bgt
+			local font_color = options.menu_style=='youtube' and bgt or (item.active and fgt or bgt)
 			local actions = is_selected and (item.actions or menu.item_actions) -- not nil = actions are visible
 			local action = actions and actions[menu.action_index] -- not nil = action is selected
 
@@ -1510,11 +1568,11 @@ function Menu:render()
 			end
 
 			-- Background
-			local highlight_opacity = 0 + (item.active and 0.8 or 0) + (is_selected and 0.15 or 0)
+			local highlight_opacity = options.menu_style=='youtube' and ((item.active and 0.14 or 0)+(is_selected and 0.12 or 0)) or (0 + (item.active and 0.8 or 0) + (is_selected and 0.15 or 0))
 			if highlight_opacity > 0 then
 				ass:rect(content_rect.ax, item_ay, content_rect.bx, item_by, {
 					radius = state.radius,
-					color = fg,
+					color = options.menu_style=='youtube' and 'FFFFFF' or fg,
 					opacity = highlight_opacity * menu_opacity,
 					clip = item_clip,
 				})
@@ -1730,6 +1788,18 @@ function Menu:render()
 			end
 
 			-- Title
+			local title_ax, title_bx = rect.ax, rect.bx
+			if self.type == 'neon-context' and is_current and menu.parent_menu and not menu.search then
+				local back_width = self.scroll_step
+				local back = {ax=rect.ax, ay=rect.ay, bx=rect.ax+back_width, by=rect.by}
+				if get_point_to_rectangle_proximity(cursor, back) <= 0 then
+					ass:rect(back.ax, back.ay, back.bx, back.by, {color=fg, opacity=menu_opacity*0.12, radius=state.radius})
+				end
+				ass:icon((back.ax+back.bx)/2, rect.cy, self.font_size*1.3, 'chevron_left', {color=fg,opacity=menu_opacity})
+				cursor:zone('primary_down', back, self:create_action(function()self:back()end))
+				title_ax = back.bx+self.item_padding*0.5
+				title_bx = rect.bx-back_width-self.item_padding*0.5
+			end
 			if menu.search then
 				-- Icon
 				local icon_size, icon_opacity = self.font_size * 1.3, menu_opacity * (requires_submit and 0.5 or 1)
@@ -1812,7 +1882,7 @@ function Menu:render()
 					color = bgt,
 					wrap = 2,
 					opacity = menu_opacity,
-					clip = '\\clip(' .. rect.ax .. ',' .. rect.ay .. ',' .. rect.bx .. ',' .. rect.by .. ')',
+					clip = '\\clip(' .. title_ax .. ',' .. rect.ay .. ',' .. title_bx .. ',' .. rect.by .. ')',
 				})
 			end
 		end
@@ -1825,18 +1895,24 @@ function Menu:render()
 		return bg_rect
 	end
 
-	-- Active menu
-	draw_menu(self.current, self.ax, 0)
-
-	-- Parent menus
-	local parent_menu = self.current.parent_menu
-	local parent_offset_x, parent_horizontal_index = self.ax, -1
-
-	while parent_menu do
-		parent_offset_x = parent_offset_x - parent_menu.width - self.padding * 2 - self.gap
-		draw_menu(parent_menu, parent_offset_x, parent_horizontal_index)
-		parent_horizontal_index = parent_horizontal_index - 1
-		parent_menu = parent_menu.parent_menu
+	if self.type == 'neon-context' then
+		local parent = self.current.parent_menu
+		if parent then
+			local parent_x = round((display.width-parent.width)/2-self.padding)
+			draw_menu(parent, parent_x, -1)
+			ass:rect(0,0,display.width,display.height,{color='000000',opacity=self.opacity*0.58})
+		end
+		draw_menu(self.current,self.ax,0)
+	else
+		draw_menu(self.current,self.ax,0)
+		local parent_menu = self.current.parent_menu
+		local parent_offset_x, parent_horizontal_index = self.ax, -1
+		while parent_menu do
+			parent_offset_x = parent_offset_x - parent_menu.width - self.padding * 2 - self.gap
+			draw_menu(parent_menu,parent_offset_x,parent_horizontal_index)
+			parent_horizontal_index=parent_horizontal_index-1
+			parent_menu=parent_menu.parent_menu
+		end
 	end
 
 	return ass

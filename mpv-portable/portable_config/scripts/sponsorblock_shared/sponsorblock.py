@@ -1,3 +1,5 @@
+import socket
+socket.setdefaulttimeout(10)
 import urllib.request
 import urllib.parse
 import hashlib
@@ -41,13 +43,13 @@ if sys.argv[1] == "ranges" and (not sys.argv[2] or not os.path.isfile(sys.argv[2
             else:
                 times.append(str(segment["segment"][0]) + "," + str(segment["segment"][1]) + "," + segment["UUID"] + "," + segment["category"])
         print(":".join(times))
-    except (TimeoutError, urllib.error.URLError) as e:
-        print("error")
     except urllib.error.HTTPError as e:
         if e.code == 404:
             print("")
         else:
             print("error")
+    except (TimeoutError, urllib.error.URLError):
+        print("error")
 elif sys.argv[1] == "ranges":
     conn = sqlite3.connect(sys.argv[2])
     conn.row_factory = sqlite3.Row

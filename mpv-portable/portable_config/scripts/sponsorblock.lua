@@ -1,3 +1,5 @@
+local mp=require 'mp'
+local neon_context=dofile(mp.command_native({'expand-path','~~/script-modules/neon-context.lua'}))
 -- sponsorblock.lua
 --
 -- This script skips sponsored segments of YouTube videos
@@ -110,6 +112,36 @@ local volume_before = mp.get_property_number("volume")
 local categories = {}
 local all_categories = {"sponsor", "intro", "outro", "interaction", "selfpromo", "preview", "music_offtopic", "filler"}
 local chapter_cache = {}
+local sb_labels={sponsor='Рекламные интеграции',intro='Заставка / вступление',outro='Концовка / титры',interaction='Просьбы подписаться и поставить лайк',selfpromo='Самореклама автора',preview='Анонсы / повтор фрагментов',music_offtopic='Немузыкальные вставки в клипах',filler='Паузы и отступления'}
+local sb_enabled=options.skip~=false
+local sb_mode=options.fast_forward and 'fast' or 'skip'
+local sb_payload
+local sb_generation=0
+local sb_fetch_state=""
+local sb_chapter_titles={}
+local sb_speed_before=1
+local sb_state_path=mp.command_native({'expand-path','~~/sponsorblock-settings.json'})
+local sb_defaults={enabled=sb_enabled,mode=sb_mode,skip_once=options.skip_once,make_chapters=options.make_chapters,min_duration=options.min_duration,skip_categories=options.skip_categories}
+do
+    local f=io.open(sb_state_path,'r')
+    if f then
+        local data=utils.parse_json(f:read('*a'));f:close()
+        if type(data)=='table' then
+            if type(data.enabled)=='boolean' then sb_enabled=data.enabled end
+            if data.mode=='skip' or data.mode=='fast' or data.mode=='chapters' then sb_mode=data.mode end
+            for _,key in ipairs({'skip_once','make_chapters'})do if type(data[key])=='boolean' then options[key]=data[key] end end
+            if type(data.min_duration)=='number' and data.min_duration==data.min_duration and data.min_duration>=0 and data.min_duration<=60 then options.min_duration=data.min_duration end
+            if type(data.skip_categories)=='string' then
+                local ids={};for id in data.skip_categories:gmatch('[^,]+')do if sb_labels[id] then ids[#ids+1]=id end end
+                options.skip_categories=table.concat(ids,',')
+            end
+        end
+    end
+end
+options.categories=table.concat(all_categories,',')
+options.fast_forward=sb_mode=='fast'
+options.skip=true
+
 
 for category in string.gmatch(options.skip_categories, "([^,]+)") do
     categories[category] = true
@@ -193,8 +225,11 @@ function process(uuid, t, new_ranges)
     if options.make_chapters and not chapter_cache[uuid] then
         chapter_cache[uuid] = true
         local category_title = (category:gsub("^%l", string.upper):gsub("_", " "))
-        create_chapter(category_title .. " segment start (" .. string.sub(uuid, 1, 6) .. ")", start_time)
-        create_chapter(category_title .. " segment end (" .. string.sub(uuid, 1, 6) .. ")", end_time)
+        local first=category_title .. " segment start (" .. string.sub(uuid, 1, 6) .. ")"
+        local last=category_title .. " segment end (" .. string.sub(uuid, 1, 6) .. ")"
+        sb_chapter_titles[first]=true;sb_chapter_titles[last]=true
+        create_chapter(first, start_time)
+        create_chapter(last, end_time)
     end
 end
 
@@ -218,7 +253,6 @@ function getranges(_, exists, db, more)
         mp.osd_message("[sponsorblock] database update succeeded")
         retrying = false
     end
-    local sponsors
     local args = {
         options.python_path,
         sponsorblock,
@@ -229,14 +263,19 @@ function getranges(_, exists, db, more)
         options.categories,
         tostring(options.sha256_length)
     }
-    if not legacy then
-        sponsors = mp.command_native({name = "subprocess", capture_stdout = true, playback_only = false, args = args})
-    else
-        sponsors = utils.subprocess({args = args})
-    end
+    local generation=sb_generation
+    sb_fetch_state='loading'
+    local function receive(success,sponsors)
+        if generation~=sb_generation or not sb_enabled then return end
+        if not success or not sponsors or sponsors.status~=0 then
+            sb_fetch_state='error';if sb_menu_publish then sb_menu_publish() end;return
+        end
+        sb_fetch_state='ready'
+        sponsors.stdout=sponsors.stdout or ''
     mp.msg.debug("Got: " .. string.gsub(sponsors.stdout, "[\n\r]", ""))
-    if not string.match(sponsors.stdout, "^%s*(.*%S)") then return end
-    if string.match(sponsors.stdout, "error") then return getranges(true, true) end
+    if not string.match(sponsors.stdout, "^%s*(.*%S)") then sb_payload="";if sb_menu_publish then sb_menu_publish() end;return end
+    if string.match(sponsors.stdout, "error") then sb_fetch_state="error";mp.msg.warn("SponsorBlock: segments unavailable");if sb_menu_publish then sb_menu_publish() end;return end
+    sb_payload=sponsors.stdout
     local new_ranges = {}
     local r_count = 0
     if more then r_count = -1 end
@@ -253,12 +292,17 @@ function getranges(_, exists, db, more)
     if c_count == 0 or r_count >= c_count then
         ranges = new_ranges
     end
+    if sb_menu_publish then sb_menu_publish() end
+    end
+    if not legacy then
+        mp.command_native_async({name='subprocess',capture_stdout=true,capture_stderr=true,playback_only=false,args=args},receive)
+    else receive(true,utils.subprocess({args=args})) end
 end
 
 function fast_forward()
     if options.fast_forward and options.fast_forward == true then
         speed_timer = nil
-        mp.set_property("speed", 1)
+        mp.set_property("speed", sb_speed_before)
     end
     local last_speed = mp.get_property_number("speed")
     local new_speed = math.min(last_speed + options.fast_forward_increase, options.fast_forward_cap)
@@ -279,7 +323,7 @@ function fade_audio(step)
 end
 
 function skip_ads(name, pos)
-    if pos == nil then return end
+    if pos == nil or not sb_enabled or sb_mode=='chapters' then return end
     local sponsor_ahead = false
     for uuid, t in pairs(ranges) do
         if (options.fast_forward == uuid or not options.skip_once or not t.skipped) and t.start_time <= pos and t.end_time > pos then
@@ -313,6 +357,7 @@ function skip_ads(name, pos)
                 end
             end
             if options.fast_forward ~= false then
+                sb_speed_before=mp.get_property_number("speed",1)
                 options.fast_forward = uuid
                 if speed_timer ~= nil then speed_timer:kill() end
                 speed_timer = mp.add_periodic_timer(1, fast_forward)
@@ -340,7 +385,7 @@ function skip_ads(name, pos)
         options.fast_forward = true
         speed_timer:kill()
         speed_timer = nil
-        mp.set_property("speed", 1)
+        mp.set_property("speed", sb_speed_before)
     end
 end
 
@@ -381,6 +426,8 @@ function update()
 end
 
 function file_loaded()
+    if sb_menu_stop_effects then sb_menu_stop_effects() end
+    sb_payload=nil;sb_chapter_titles={};sb_generation=sb_generation+1;sb_fetch_state=""
     local initialized = init
     ranges = {}
     segment = {a = 0, b = 0, progress = 0, first = true}
@@ -405,9 +452,10 @@ function file_loaded()
     end
     youtube_id = youtube_id or string.match(video_path, options.local_pattern)
     
-    if not youtube_id or string.len(youtube_id) < 11 or (local_pattern and string.len(youtube_id) ~= 11) then return end
+    if not youtube_id or string.len(youtube_id) < 11 or (local_pattern and string.len(youtube_id) ~= 11) then youtube_id=nil;if sb_menu_publish then sb_menu_publish() end;return end
     youtube_id = string.sub(youtube_id, 1, 11)
     mp.msg.debug("Found YouTube ID: " .. youtube_id)
+    if not sb_enabled then if sb_menu_publish then sb_menu_publish() end;return end
     init = true
     if not options.local_database then
         getranges(true, true)
@@ -567,3 +615,107 @@ mp.add_key_binding(nil, "sponsorblock_set_segment", set_segment)
 mp.add_key_binding(nil, "sponsorblock_submit_segment", submit_segment)
 mp.add_key_binding(nil, "sponsorblock_upvote", function() return vote("1") end)
 mp.add_key_binding(nil, "sponsorblock_downvote", function() return vote("0") end)
+
+-- Local player settings. Opening/exporting this menu never contacts the server.
+local function sb_settings()
+    return {enabled=sb_enabled,mode=sb_mode,skip_categories=options.skip_categories,
+        skip_once=options.skip_once,make_chapters=options.make_chapters,min_duration=options.min_duration}
+end
+local function sb_publish()
+    local list={}
+    for uuid,r in pairs(ranges) do list[#list+1]={uuid=uuid,start_time=r.start_time,end_time=r.end_time,category=r.category,skipped=r.skipped} end
+    table.sort(list,function(a,b)return a.start_time<b.start_time end)
+    mp.set_property_native('user-data/sponsorblock',{settings=sb_settings(),video_id=youtube_id or '',segments=list,fetch_state=sb_fetch_state})
+end
+local function sb_stop_effects()
+    if speed_timer then speed_timer:kill();speed_timer=nil;mp.set_property_number('speed',sb_speed_before) end
+    if fade_timer then fade_timer:kill();fade_timer=nil end
+    if fade_dir~=nil then mp.set_property_number('volume',volume_before);fade_dir=nil end
+    options.fast_forward=sb_mode=='fast'
+end
+local function sb_clear_chapters()
+    local list={}
+    for _,chapter in ipairs(mp.get_property_native('chapter-list',{})) do
+        if not sb_chapter_titles[chapter.title or ''] then list[#list+1]=chapter end
+    end
+    mp.set_property_native('chapter-list',list)
+    sb_chapter_titles={};chapter_cache={}
+end
+local function sb_rebuild()
+    sb_clear_chapters()
+    local previous=ranges
+    ranges={}
+    if sb_payload and sb_enabled then
+        local result={}
+        for token in sb_payload:gmatch('[^:%s]+') do
+            local uuid=token:match('([^,]+),[^,]+$')
+            if uuid then process(uuid,token,result) end
+        end
+        for uuid,r in pairs(result) do if previous[uuid] then r.skipped=previous[uuid].skipped end end
+        ranges=result
+    end
+    sb_publish()
+end
+local function sb_save()
+    local f,err=io.open(sb_state_path,'w')
+    if f then f:write(utils.format_json(sb_settings()));f:close()
+    else mp.msg.error(tostring(err));mp.osd_message('Не удалось сохранить настройки SponsorBlock',3) end
+end
+local sb_menu
+local function sb_command(key,value)return {'script-message-to','sponsorblock','settings-set',key,tostring(value or '')}end
+local function sb_row(title,key,value,active)
+    return {title=title,value=sb_command(key,value),active=active,keep_open=true}
+end
+sb_menu=function()
+    local cats={}
+    for _,id in ipairs(all_categories) do cats[#cats+1]=sb_row(sb_labels[id],'category',id,categories[id] or false) end
+    local durations={}
+    for _,n in ipairs({0,0.5,1,2,3,5,10}) do durations[#durations+1]=sb_row(n==0 and 'Любая длительность' or string.format('%g с',n),'min_duration',n,options.min_duration==n) end
+    local modes={sb_row('Автоматически пропускать','mode','skip',sb_mode=='skip'),
+        sb_row('Ускорять до 2×','mode','fast',sb_mode=='fast'),
+        sb_row('Только отмечать главы','mode','chapters',sb_mode=='chapters')}
+    local count=0;for _ in pairs(ranges)do count=count+1 end
+    local status=not sb_enabled and 'Выключен' or (youtube_id and (sb_fetch_state=='loading' and 'Получение сегментов…' or sb_fetch_state=='error' and 'Сегменты временно недоступны' or ('YouTube · сегментов для пропуска: '..count)) or 'Работает с видео YouTube')
+    neon_context.open(utils.format_json({type='sponsorblock-settings',title='SponsorBlock',items={
+        {title=status,selectable=false,muted=true},
+        sb_row('Включить SponsorBlock','enabled','toggle',sb_enabled),
+        {title='Действие с сегментами',hint=sb_mode=='fast' and 'Ускорение' or sb_mode=='chapters' and 'Метки' or 'Пропуск',items=modes},
+        {title='Пропускать категории',items=cats},
+        sb_row('Пропускать каждый сегмент только один раз','skip_once','toggle',options.skip_once),
+        sb_row('Показывать границы сегментов в главах','make_chapters','toggle',options.make_chapters),
+        {title='Минимальная длительность пропуска',hint=string.format('%g с',options.min_duration),items=durations},
+        {title='Сбросить настройки SponsorBlock',value=sb_command('reset'),keep_open=true}},
+        footnote='Категории задают автоматический пропуск · настройки сохраняются'}))
+end
+mp.register_script_message('settings-set',function(key,value)
+    local was_enabled=sb_enabled
+    sb_stop_effects()
+    if key=='enabled' then sb_enabled=not sb_enabled
+    elseif key=='mode' and (value=='skip' or value=='fast' or value=='chapters') then
+        sb_mode=value
+        if value=='chapters' then options.make_chapters=true end
+    elseif key=='category' and sb_labels[value] then
+        categories[value]=not categories[value]
+        local selected={};for _,id in ipairs(all_categories)do if categories[id] then selected[#selected+1]=id end end
+        options.skip_categories=table.concat(selected,',')
+    elseif key=='skip_once' or key=='make_chapters' then options[key]=not options[key]
+    elseif key=='min_duration' then
+        local n=tonumber(value);if not n or n~=n or n<0 or n>60 then return end
+        options.min_duration=n
+    elseif key=='reset' then
+        sb_enabled=sb_defaults.enabled;sb_mode=sb_defaults.mode
+        options.skip_once=sb_defaults.skip_once;options.make_chapters=sb_defaults.make_chapters
+        options.min_duration=sb_defaults.min_duration;options.skip_categories=sb_defaults.skip_categories
+        categories={};for id in options.skip_categories:gmatch('[^,]+')do if sb_labels[id] then categories[id]=true end end
+    else return end
+    options.skip=true;options.fast_forward=sb_mode=='fast'
+    sb_save();sb_rebuild()
+    if sb_enabled and not was_enabled and youtube_id and not sb_payload then file_loaded() end
+    sb_menu()
+end)
+mp.add_key_binding(nil,'menu',sb_menu)
+neon_context.register({menu=sb_menu})
+mp.add_timeout(0.1,sb_publish)
+-- Accessible to the existing file-loaded/getranges callbacks, without new key conflicts.
+sb_menu_publish=sb_publish
+sb_menu_stop_effects=sb_stop_effects

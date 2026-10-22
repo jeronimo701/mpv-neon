@@ -1,3 +1,4 @@
+local neon_context=dofile(require('mp').command_native({'expand-path','~~/script-modules/neon-context.lua'}))
 -- GPU ambient canvas. The film is sampled separately; history/blur stay on GPU.
 local mp=require 'mp'
 local utils=require 'mp.utils'
@@ -6,10 +7,10 @@ local o={settings_file='~~/ambient-settings.json'}
 require('mp.options').read_options(o,'ambient')
 local file=mp.command_native({'expand-path',o.settings_file})
 local shader=mp.command_native({'expand-path','~~/shaders/Ambient.glsl'})
-local s={mode=0,brightness=80,coverage=80,blur=32,reaction='smooth'}
+local s={mode=0,brightness=80,coverage=80,blur=32,edge=50,reaction='smooth'}
 local names={'Выключено — чёрные полосы','Сияние — свет от краёв','Кино — размытая сцена','Эхо — волны и след движения','Зеркало — отражённый кадр'}
 local reaction={calm=0.85,smooth=0.3,immediate=0}
-local ranges={mode={0,4},brightness={0,100},coverage={0,100},blur={0,128}}
+local ranges={mode={0,4},brightness={0,100},coverage={0,100},blur={0,128},edge={0,100}}
 local active,editing=false,false
 local original_aspect
 local original_resize
@@ -54,7 +55,7 @@ local function params()
         if rotate%180~=0 then target=1/target end
         local p={ambient_mode=s.mode,ambient_aspect=target,ambient_source=aspect,
             ambient_brightness=s.brightness/100,ambient_coverage=s.coverage/100,
-            ambient_blur=s.blur,ambient_reaction=reaction[s.reaction],
+            ambient_blur=s.blur,ambient_edge=s.edge/100,ambient_reaction=reaction[s.reaction],
             ambient_clock=mp.get_property_number('time-pos',0),ambient_serial=serial}
         for k,v in pairs(p) do values[k]=tostring(v) end
         if math.abs(mp.get_property_number('video-aspect-override',-2)-target)>0.000001 then mp.set_property_number('video-aspect-override',target) end
@@ -94,6 +95,7 @@ local function set(k,v)
     end
     if ranges[k] then v=tonumber(v) end
     if not valid(k,v) then mp.osd_message('Подсветка: недопустимое значение',3);return end
+    if s[k]==v then return end
     s[k]=v;save();apply()
 end
 local function choices(title,k,values)
@@ -111,10 +113,79 @@ local function menu()
     local modes={};for i=0,4 do modes[#modes+1]={i,names[i+1]} end
     local items={choices('Режим','mode',modes),choices('Яркость фона, %','brightness',{{0},{25},{50},{80},{100}}),
         choices('Охват полос, %','coverage',{{0},{25},{50},{80},{100}}),choices('Размытие','blur',{{0},{8},{16},{32},{64},{96},{128}}),
-        choices('Успевает за кадром','reaction',{{'calm','Спокойно'},{'smooth','Плавно'},{'immediate','Сразу'}})}
-    mp.commandv('script-message-to','uosc','open-menu',utils.format_json({type='ambient-settings',title='Подсветка — '..names[s.mode+1],items=items,
+        {title='Сглаживание границы: '..s.edge..'% — ползунок',value={'script-binding','ambient/edge-slider'}},
+        choices('Успевает за кадром','reaction',{{'calm','Спокойно'},{'smooth','Плавно'},{'immediate','Сразу'}}),
+        {title='Справка по подсветке',value={'script-message-to','player_help','topic','ambient'}}}
+    neon_context.open(utils.format_json({type='ambient-settings',title='Подсветка — '..names[s.mode+1],items=items,
         footnote='GPU-эффект • Не убирает полосы внутри видео • F8'}))
 end
+-- Modal OSD slider, in window pixels. Background blur and seam width are independent.
+local slider,slider_timer,dragging,window_dragging
+local function slider_close()
+    if slider_timer then slider_timer:kill();slider_timer=nil end
+    if slider then slider:remove();slider=nil end
+    dragging=false
+    if window_dragging~=nil then mp.set_property_bool('window-dragging',window_dragging);window_dragging=nil end
+    for _,key in ipairs({'edge-mouse','edge-double','edge-esc','edge-enter','edge-left','edge-right','edge-wheel-up','edge-wheel-down'}) do mp.remove_key_binding(key) end
+    mp.enable_key_bindings('input_forced_ambient','allow-hide-cursor+allow-vo-dragging')
+end
+local function slider_geometry()
+    local w,h=mp.get_osd_size()
+    local width=math.min(560,w*0.85)
+    return w,h,(w-width)/2,(h-170)/2,width
+end
+local function slider_draw()
+    if not slider then return end
+    local w,h,x,y,width=slider_geometry()
+    local a=require('mp.assdraw').ass_new()
+    a:new_event();a:pos(0,0);a:append('{\\bord0\\shad0\\1c&H2C1C14&\\1a&H10&}')
+    a:draw_start();a:rect_cw(x,y,x+width,y+170);a:draw_stop()
+    local left,right=x+28,x+width-28
+    local pos=left+(right-left)*s.edge/100
+    a:new_event();a:pos(0,0);a:append('{\\bord0\\shad0\\1c&H655344&}')
+    a:draw_start();a:rect_cw(left,y+83,right,y+89);a:draw_stop()
+    a:new_event();a:pos(0,0);a:append('{\\bord0\\shad0\\1c&HFFE77C&}')
+    a:draw_start();a:rect_cw(left,y+83,pos,y+89);a:rect_cw(pos-5,y+75,pos+5,y+97);a:draw_stop()
+    a:new_event();a:pos(x+width/2,y+20);a:an(8)
+    a:append('{\\fs22\\bord0\\shad0\\1c&HFFFFFF&}Сглаживание границы: '..s.edge..'%')
+    a:new_event();a:pos(x+width/2,y+118);a:an(8)
+    a:append('{\\fs16\\bord0\\shad0\\1c&HD8D8D8&}Мышь / ← →: изменить · Enter / Esc: закрыть\\N0% — резкий край · 100% — широкий мягкий переход')
+    slider.res_x=w;slider.res_y=h;slider.data=a.text;slider:update()
+end
+local function slider_mouse()
+    local _,_,x,_,width=slider_geometry()
+    local mx=mp.get_mouse_pos()
+    set('edge',math.floor(math.max(0,math.min(100,(mx-x-28)/(width-56)*100))+0.5))
+    slider_draw()
+end
+mp.add_key_binding(nil,'edge-slider',function()
+    if slider then slider_close();return end
+    mp.commandv('script-message-to','uosc','close-menu')
+    window_dragging=mp.get_property_bool('window-dragging',true)
+    mp.set_property_bool('window-dragging',false)
+    slider=mp.create_osd_overlay('ass-events')
+    mp.add_forced_key_binding('MBTN_LEFT','edge-mouse',function(e)
+        if e.event=='down' or e.event=='press' then
+            local _,_,x,y,width=slider_geometry();local mx,my=mp.get_mouse_pos()
+            if mx<x or mx>x+width or my<y or my>y+170 then slider_close();return end
+            dragging=true;slider_mouse()
+        elseif e.event=='up' then if dragging then slider_mouse() end;dragging=false end
+    end,{complex=true})
+    mp.add_forced_key_binding('MBTN_LEFT_DBL','edge-double',function()end)
+    mp.add_forced_key_binding('ESC','edge-esc',slider_close)
+    mp.add_forced_key_binding('ENTER','edge-enter',slider_close)
+    local function adjust(delta)return function()set('edge',math.max(0,math.min(100,s.edge+delta)));slider_draw()end end
+    mp.add_forced_key_binding('LEFT','edge-left',adjust(-1),{repeatable=true})
+    mp.add_forced_key_binding('RIGHT','edge-right',adjust(1),{repeatable=true})
+    mp.add_forced_key_binding('WHEEL_UP','edge-wheel-up',adjust(5))
+    mp.add_forced_key_binding('WHEEL_DOWN','edge-wheel-down',adjust(-5))
+    -- The default script section permits moving the borderless native window.
+    -- Capture the drag while the modal slider is open instead.
+    mp.enable_key_bindings('input_forced_ambient','')
+    slider_timer=mp.add_periodic_timer(0.04,function()if dragging then slider_mouse() else slider_draw() end end)
+    slider_draw()
+end)
+mp.register_event('start-file',slider_close)
 mp.add_key_binding(nil,'menu',menu)
 mp.register_script_message('set',set)
 mp.register_script_message('input',function(k,title)
@@ -142,3 +213,5 @@ mp.observe_property('idle-active','bool',apply)
 mp.register_event('file-loaded',function()serial=serial+1;apply()end)
 mp.register_event('shutdown',function()if active then mp.set_property_native('video-aspect-override',original_aspect or -2);mp.set_property_native('auto-window-resize',original_resize) end end)
 mp.add_timeout(0.5,apply)
+
+neon_context.register({menu=menu})

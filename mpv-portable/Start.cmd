@@ -1,4 +1,4 @@
 @echo off
-setlocal
-cd /d "%~dp0"
-start "" "%~dp0Player.exe" %*
+
+start "" "%~dp0mpv-neon.exe" %*
+

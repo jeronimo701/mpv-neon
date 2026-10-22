@@ -4,6 +4,7 @@ local CycleButton = require('elements/CycleButton')
 local ManagedButton = require('elements/ManagedButton')
 local Speed = require('elements/Speed')
 local HorizontalVolume = require('elements/HorizontalVolume')
+local YoutubeTime = require('elements/YoutubeTime')
 
 -- sizing:
 --   static - shrink, have highest claim on available space, disappear when there's not enough of it
@@ -50,7 +51,7 @@ function Controls:init_options()
 		['open-file'] = 'command:file_open:script-binding uosc/open-file?' .. t('Open file'),
 		['items'] = 'command:list_alt:script-binding uosc/items?' .. t('Playlist/Files'),
 		prev = 'command:arrow_back_ios:script-binding uosc/prev?' .. t('Previous'),
-		next = 'command:arrow_forward_ios:script-binding uosc/next?' .. t('Next'),
+		next = 'command:'..(options.menu_style=='youtube' and 'skip_next' or 'arrow_forward_ios')..':script-binding uosc/next?' .. t('Next'),
 		first = 'command:first_page:script-binding uosc/first?' .. t('First'),
 		last = 'command:last_page:script-binding uosc/last?' .. t('Last'),
 		['loop-playlist'] = 'cycle:repeat:loop-playlist:no/inf!?' .. t('Loop playlist'),
@@ -62,9 +63,16 @@ function Controls:init_options()
 
 	-- Parse out disposition/config pairs
 	local items = {}
+	local controls=options.controls
+	if options.menu_style=='youtube' and display.width < 700*state.scale then
+		controls='play-pause,next,volume-slider,space,speed-menu,button:youtube_settings,button:more_tools,fullscreen'
+	end
+	if options.menu_style=='youtube' and display.width < 450*state.scale then
+		controls='play-pause,volume-slider,space,speed-menu,button:youtube_settings,button:more_tools,fullscreen'
+	end
 	local in_disposition = false
 	local current_item = nil
-	for c in options.controls:gmatch('.') do
+	for c in controls:gmatch('.') do
 		if not current_item then current_item = {disposition = '', config = ''} end
 		if c == '<' and #current_item.config == 0 then
 			in_disposition = true
@@ -178,6 +186,12 @@ function Controls:init_options()
 				table_assign(control, {element = element, sizing = 'static', scale = 1, ratio = 1})
 				if badge then self:register_badge_updater(badge, element) end
 			end
+		elseif kind == 'youtube-time' then
+			local element=YoutubeTime:new('control_'..i,{render_order=self.render_order,anchor_id='controls'})
+			table_assign(control,{element=element,sizing='dynamic',scale=1,ratio=3.2,ratio_min=2.6})
+		elseif kind == 'speed-menu' then
+			local element = ManagedButton:new('control_' .. i, {name='playback_speed',render_order=self.render_order,anchor_id='controls',on_hide=function()self:reflow()end})
+			table_assign(control,{element=element,sizing='static',scale=1,ratio=1.65})
 		elseif kind == 'button' then
 			if #params ~= 1 then
 				mp.error(string.format(
@@ -194,7 +208,7 @@ function Controls:init_options()
 			end
 		elseif kind == 'volume-slider' then
 			local element = HorizontalVolume:new('control_' .. i, {anchor_id = 'controls', render_order = self.render_order})
-			table_assign(control, {element = element, sizing = 'static', scale = 1, ratio = 5.6})
+			table_assign(control, {element = element, sizing = 'dynamic', scale = 1, ratio = options.menu_style=='youtube' and 3.8 or 5.6, ratio_min = options.menu_style=='youtube' and 2.8 or 3.4})
 		elseif kind == 'speed' then
 			if not Elements.speed then
 				local element = Speed:new({anchor_id = 'controls', render_order = self.render_order})
@@ -298,6 +312,7 @@ function Controls:register_badge_updater(badge, element)
 end
 
 function Controls:get_visibility()
+	if options.menu_style=='youtube' and Elements:maybe('timeline','get_is_hovered') then return 1 end
 	return (Elements:v('speed', 'dragging') or state.horizontal_volume_dragging) and 1 or Elements:maybe('timeline', 'get_is_hovered')
 		and -1 or Element.get_visibility(self)
 end
@@ -305,6 +320,7 @@ end
 function Controls:update_dimensions()
 	local window_border = Elements:v('window_border', 'size', 0)
 	local size = round(options.controls_size * state.scale)
+	if options.menu_style=='youtube' and display.width<450*state.scale then size=round(34*state.scale) end
 	local spacing = round(options.controls_spacing * state.scale)
 	local margin = round(options.controls_margin * state.scale)
 
@@ -323,7 +339,7 @@ function Controls:update_dimensions()
 
 	-- Container
 	self.bx = display.width - window_border - margin
-	self.by = Elements:v('timeline', 'ay', display.height - window_border) - margin
+	self.by = options.menu_style=='youtube' and (display.height-window_border-margin) or (Elements:v('timeline', 'ay', display.height - window_border) - margin)
 	self.ax, self.ay = window_border + margin, self.by - size
 
 	-- Controls
@@ -462,7 +478,9 @@ function Controls:update_dimensions()
 end
 
 function Controls:on_dispositions() self:reflow() end
-function Controls:on_display() self:update_dimensions() end
+function Controls:on_display()
+	if options.menu_style=='youtube' then self:destroy_elements();self:init_options() else self:update_dimensions() end
+end
 function Controls:on_prop_border() self:update_dimensions() end
 function Controls:on_prop_title_bar() self:update_dimensions() end
 function Controls:on_prop_fullormaxed() self:update_dimensions() end

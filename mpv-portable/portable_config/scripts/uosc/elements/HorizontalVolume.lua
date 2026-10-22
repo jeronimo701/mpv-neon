@@ -53,14 +53,14 @@ function HorizontalVolume:render()
     local muted=state.mute or state.volume<=0
     ass:icon(self.ax+h*0.45,cy,h*0.72,muted and 'volume_off' or 'volume_up',
         {color=bgt,opacity=visibility,border=options.text_border*state.scale})
+    local volume_color=options.menu_style=='youtube' and bgt or fg
     local size=math.max(3,4*state.scale)
     local x=self.track_ax+(self.track_bx-self.track_ax)*clamp(0,state.volume/100,1)
     ass:rect(self.track_ax,cy-size/2,self.track_bx,cy+size/2,{color=bgt,opacity=visibility*0.28,radius=size/2})
-    ass:rect(self.track_ax,cy-size/2,x,cy+size/2,{color=fg,opacity=visibility*(muted and 0.35 or 1),radius=size/2})
-    ass:circle(x,cy,4.5*state.scale,{color=fg,opacity=visibility})
+    ass:rect(self.track_ax,cy-size/2,x,cy+size/2,{color=volume_color,opacity=visibility*(muted and 0.35 or 1),radius=size/2})
+    ass:circle(x,cy,4.5*state.scale,{color=volume_color,opacity=visibility})
     ass:txt(self.bx-h*0.05,cy,6,string.format('%d%%',round(state.volume)),
         {size=h*0.42,opacity=visibility,color=bgt,border=options.text_border*state.scale})
-    if self.proximity_raw<=0 then ass:tooltip(self,'Громкость · колесо ±5% · динамик: без звука') end
     return ass
 end
 return HorizontalVolume

@@ -9,11 +9,13 @@ mpv, uosc, TorrServer, шейдеры, зависимости и их модиф
 распространяется только на следующие отдельные собственные материалы Jeronimo701:
 
 - `prepare-public.ps1`;
-- `tests/validate-public.ps1`;
-- `installer-source/build.ps1`, `installer-source/mpv-neon.iss`;
+- `tests/validate-public.ps1`, `tests/smoke-public.py`;
+- `installer-source/build.ps1`, `installer-source/Setup.iss`,
+  `installer-source/Associations.iss`, `installer-source/Launcher.cs`,
+  `installer-source/StopBundledTorrServer.ps1`, `installer-source/validate_encoding.py`;
 - собственный текст корневых `README.md`, `PUBLIC-VALIDATION.md`,
   `installer-source/README.md`, `installer-source/install-notes.txt`,
-  `public/README.md`, `public/INSTALLER.md`;
+  `public/README.md`, `public/INSTALLER.md`, `public/CHANGES.txt`;
 - корневые `.gitignore`, `.gitattributes`.
 
 Заимствованные фрагменты с собственной лицензией, если есть, из этой области исключаются.

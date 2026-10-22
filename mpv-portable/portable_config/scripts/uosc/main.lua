@@ -865,9 +865,7 @@ bind_command('subtitles', create_select_tracklist_type_menu_opener({
 	load_command = 'script-binding uosc/load-subtitles',
 	download_command = 'script-binding uosc/download-subtitles',
 }))
-bind_command('audio', create_select_tracklist_type_menu_opener({
-	title = t('Audio'), type = 'audio', prop = 'aid', load_command = 'script-binding uosc/load-audio',
-}))
+bind_command('audio', function() mp.commandv('script-binding','external_audio/menu') end)
 bind_command('video', create_select_tracklist_type_menu_opener({
 	title = t('Video'), type = 'video', prop = 'vid', load_command = 'script-binding uosc/load-video',
 }))
@@ -1099,7 +1097,7 @@ mp.register_script_message('open-menu', function(json, submenu_id)
 	if type(data) ~= 'table' or type(data.items) ~= 'table' then
 		msg.error('open-menu: received json didn\'t produce a table with menu configuration')
 	else
-		open_command_menu(data, {submenu = submenu_id, on_close = data.on_close})
+		open_command_menu(data, {submenu = submenu_id, on_close = data.on_close, mouse_nav = data.mouse_nav})
 	end
 end)
 mp.register_script_message('update-menu', function(json)

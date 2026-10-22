@@ -1,3 +1,4 @@
+local neon_context=dofile(require('mp').command_native({'expand-path','~~/script-modules/neon-context.lua'}))
 local mp = require 'mp'
 local utils = require 'mp.utils'
 local defaults = {model=1,flow=50,mode=1,multiplier=2,capture=1,fps=1}
@@ -53,7 +54,7 @@ local function menu()
     items[#items+1]=choices('Счётчик FPS: '..(s.fps==1 and 'вкл.' or 'выкл.'),'fps',{{1,'Включить'},{0,'Выключить'}})
     items[#items+1]={title='Сбросить настройки LSFG',value={'script-message-to','motion','reset'}}
     items[#items+1]={title='Проверить DLL и частоту экрана',value={'script-message','lsfg-native-probe'}}
-    mp.commandv('script-message-to','uosc','open-menu',utils.format_json({type='motion',title='Плавность — Lossless Scaling DLL',items=items,
+    neon_context.open(utils.format_json({type='motion',title='Плавность — Lossless Scaling DLL',items=items,
         footnote='Состояние: '..mp.get_property_native('user-data/lsfg/status','неизвестно')..' • Fixed: цель не ограничивает FPS • F6'}))
 end
 mp.add_key_binding(nil,'menu',menu)
@@ -69,3 +70,5 @@ mp.observe_property('user-data/lsfg/status','native',function(_,v)
     if v=='active' then mp.osd_message('LSFG: захват активен • '..(s.mode==1 and 'Adaptive' or ('Fixed '..s.multiplier..'×')),3) end
 end)
 mp.observe_property('user-data/lsfg/error','native',function(_,v) if v and v~='' then mp.msg.warn(v) end end)
+
+neon_context.register({menu=menu})
