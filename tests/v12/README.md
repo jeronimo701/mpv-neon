@@ -1,0 +1,14 @@
+# Локальные регрессионные сценарии v12
+
+Lua-сценарии запускаются как `mpv --script=<файл> --config-dir=<тестовый portable_config>`. Они проверяют действующий плеер, не загружают сторонние библиотеки и не захватывают рабочий стол. Скриншоты используются только штатной командой screenshot-to-file mpv.
+
+Всегда используйте отдельные файлы состояния в scratch/work, а не личный профиль: `--script-opts-append=playlist-library-library_file=work/test-library.json`, `--script-opts-append=audio-settings-settings_file=work/test-audio.json`, `--script-opts-append=ui-theme-state_file=work/test-theme.json`. Отключайте autoload для контролируемого состава очереди. Путь библиотеки для save/load должен совпадать, а для других тестов лучше использовать новый файл.
+
+- `test-v12-audio.lua`: нужен аудиофайл длиной хотя бы 12 секунд, `--mute=yes` для тишины и `--af=@external:lavfi=[anull]` для проверки сохранности чужого фильтра. Проверяет dynaudnorm/loudnorm, усиление 200%, компрессор, лимитер, WASAPI и сброс обработки.
+- `test-v12-playlists.lua`: подготовьте `work/sample.mp4` и `work/cinema-wide.mp4`, оба дольше 1 секунды. `--idle=yes --pause --keep-open=yes --vo=null --ao=null --script-opts-append=autoload-disabled=yes`. Первый запуск создаёт два списка; второй добавляет `--script-opts-append=test-playlists-phase=load`. Библиотека должна быть новой для первого запуска.
+- `test-v12-library-safety.lua`: explicit-фаза использует копию двухсписочной библиотеки и открытый sample.mp4. corrupt-фаза (`library-safety-phase=corrupt`) использует отдельный намеренно некорректный JSON; до/после сверяется его SHA-256.
+- `test-v12-anime.lua`: видео 320×180, окно 640×360, gpu-next/D3D11, пауза. Перебирает 12 официальных цепочек. Маленький кадр не является тестом производительности HQ на фильмах.
+- `mock-v12-torrserver.py`: отдельный loopback-макет. Аргументы: порт, задержка в секундах, путь к sample.mp4. Пример: `python mock-v12-torrserver.py 18177 6 work/sample.mp4`. Нужен ThreadingHTTPServer, потому что HTTP-поток ждёт буферизации параллельно с запросами статистики.
+- `test-v12-torr-progress.lua`: задайте `torrserver-server=http://127.0.0.1:18177`, `torrserver-auto_start=no`, отдельную библиотеку и существующую папку outputs/player-previews. Для собственного скриншота mpv запускайте сначала sample.mp4; тест затем открывает макетный поток. Проверяет процент API в ожидании, 4 МБ/с, 7 пиров, file-loaded и исчезновение индикатора. Настоящий TorrServer пользователя для этого не нужен.
+
+Исходный общий тест `tests/smoke-public.py` дополнительно проверяет обновление Portable с сохранением изменённых настроек, остановку только своего встроенного TorrServer, байтовое совпадение payload, синтетическое воспроизведение, отсутствие Lua-ошибок и миграцию профиля launcher в отдельную папку через MPV_NEON_PROFILE_ROOT.

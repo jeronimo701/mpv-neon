@@ -17,7 +17,7 @@ local themes={
         background_text='FFFFFF',curtain='111111',radius=6,height=36,padding=4,width=260,opacity=100,curtain_opacity=0.8,submenu=0.4},
 }
 local accents={youtube='FF0033',cyan='7CE7FF',blue='53ADFF',violet='BDA0FF',mint='79E9BC',red='FF717D',ember='FF6247',white='FFFFFF'}
-local state={theme='deck',accent='blue',opacity=97,size='normal',animation='smooth'}
+local state={theme='youtube',accent='youtube',opacity=98,size='normal',animation='smooth'}
 local sizes={compact=0.9,normal=1,large=1.15}
 local animations={none=0,quick=90,smooth=180}
 local f=io.open(file,'r')
@@ -55,6 +55,8 @@ local function apply(persist)
     for k,v in pairs(values) do current['uosc-'..k]=tostring(v) end
     mp.set_property_native('options/script-opts',current)
     mp.set_property_native('user-data/ui-theme/settings',state)
+    mp.set_property_native('user-data/ui-theme/palette',{background=t.background,foreground=t.background_text,
+        accent=color,accent_text=t.foreground_text,size=state.size})
     if persist then
         local out,err=io.open(file,'w')
         if out then out:write(utils.format_json(state));out:close()

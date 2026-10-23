@@ -2,6 +2,16 @@ local neon_context=dofile(require('mp').command_native({'expand-path','~~/script
 local mp=require 'mp'
 local utils=require 'mp.utils'
 local topics={
+    sound={title='Звук: громкость, нормализация и вывод',lines={
+        'F5 → Звук или Ctrl+Shift+A — все настройки звука.',
+        'Нормализация подравнивает громкость; есть динамический и LUFS-режим.',
+        'Усиление 100% — оригинал; 200% — двойная амплитуда (+6 dB).',
+        'Усиление задаётся отдельно от основного ползунка громкости.',
+        'Ночной режим сжимает перепады: диалоги ровнее, эффекты тише.',
+        'Лимитер сдерживает цифровые пики после усиления.',
+        'WASAPI — обычный или эксклюзивный; есть OpenAL и выбор устройства.',
+        'Exclusive может занять устройство у других приложений.',
+        'Сохранённый недоступный выход заменяется на auto.'},action={'Открыть настройки звука','audio_settings/menu'}},
     playback={title='Управление воспроизведением',lines={
         'Один клик по видео / Space / K — пауза и продолжение.',
         'Двойной клик / F — полный экран; Esc — выйти из него.',
@@ -34,6 +44,10 @@ local topics={
         '«Успевает за кадром» — скорость реакции фонового света.',
         'Полосы, уже записанные в видео, подсветка не распознаёт.'},action={'Открыть подсветку','ambient/menu'}},
     playlist={title='Плейлист: меню и отдельное окно',lines={
+        'Ctrl+Shift+P — несколько именованных сохраняемых списков.',
+        'В отдельном окне вкладки и + создают и переключают списки.',
+        'При запуске без файла активная очередь восстанавливается на паузе.',
+        'При новом запуске с другим файлом старый список не стирается.',
         'P — быстрый плейлист внутри видео.',
         'F5 → Отдельное окно плейлиста — включить или выключить.',
         'Ctrl+P — тот же переключатель без меню.',
@@ -65,7 +79,7 @@ local function open(title,items)
 end
 local function menu()
     local items={}
-    for _,id in ipairs({'playback','quality','ambient','playlist','extras'}) do
+    for _,id in ipairs({'playback','sound','quality','ambient','playlist','extras'}) do
         items[#items+1]={title=topics[id].title,value={'script-message-to','player_help','topic',id}}
     end
     open('Справка по плееру',items)
@@ -81,4 +95,4 @@ end
 mp.register_script_message('topic',topic)
 mp.add_key_binding(nil,'menu',menu)
 
-neon_context.register({menu=menu,playback=function()topic('playback')end,quality=function()topic('quality')end,ambient=function()topic('ambient')end,playlist=function()topic('playlist')end,extras=function()topic('extras')end})
+neon_context.register({menu=menu,playback=function()topic('playback')end,sound=function()topic('sound')end,quality=function()topic('quality')end,ambient=function()topic('ambient')end,playlist=function()topic('playlist')end,extras=function()topic('extras')end})

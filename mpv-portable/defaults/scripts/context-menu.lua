@@ -13,8 +13,10 @@ local providers={
     help={'player_help','menu','player-help'},
     sponsorblock={'sponsorblock','menu','sponsorblock-settings'},
     ['external-audio']={'external_audio','menu','external-audio'},
+    ['audio-settings']={'audio_settings','menu','audio-settings'},
+    ['playlist-library']={'playlist_library','menu','playlist-library'},
     history={'memo','history','memo-history'},
-    ['help-playback']={'player_help','playback'},['help-quality']={'player_help','quality'},
+    ['help-playback']={'player_help','playback'},['help-sound']={'player_help','sound'},['help-quality']={'player_help','quality'},
     ['help-ambient']={'player_help','ambient'},['help-playlist']={'player_help','playlist'},['help-extras']={'player_help','extras'},
 }
 local types={}
@@ -89,6 +91,7 @@ end
 local function playlist()
     local enabled=mp.get_property_native('user-data/playlist-window/enabled',false)
     local entries={item('Отдельное окно: '..(enabled and 'вкл.' or 'выкл.'),binding('playlist_window/toggle'),{active=enabled,hint='Ctrl+P',separator=true})}
+    entries[#entries+1]=submenu('playlist-library','Мои плейлисты — создать / переключить','',{})
     local position=mp.get_property_number('playlist-pos',-1)
     for i,p in ipairs(mp.get_property_native('playlist',{}))do
         local title=p.title or p.filename:gsub('\\','/'):match('[^/]+$') or p.filename
@@ -124,6 +127,7 @@ local function build()
                 item('Получить доступные варианты',binding('quality_menu/video_formats_toggle')),
                 label('Доступно для поддерживаемых сетевых источников')})}},
         {id='ctx/sound',title='Звук и субтитры',items={
+            submenu('audio-settings','Громкость, нормализация и аудиовывод','',{}),
             submenu('external-audio','Аудиодорожка','A',tracks('audio')),
             {id='ctx/subs',title='Субтитры',hint='S',items=tracks('sub')},
             item('Показывать субтитры',{'cycle','sub-visibility'},{active=mp.get_property_bool('sub-visibility',true)}),

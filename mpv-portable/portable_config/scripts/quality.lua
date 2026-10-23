@@ -1,6 +1,7 @@
 local neon_context=dofile(require('mp').command_native({'expand-path','~~/script-modules/neon-context.lua'}))
 local mp = require 'mp'
 local utils = require 'mp.utils'
+local anime=dofile(mp.command_native({'expand-path','~~/script-modules/anime4k-profiles.lua'}))
 local profiles = {
     {id='native', title='Обычный — без шейдеров', hint='Рекомендуется по умолчанию'},
     {id='sd480', title='480p → экран — мягкий апскейл', hint='FSRCNNX 8 · KrigBilateral · сглаживание градиентов'},
@@ -27,6 +28,16 @@ for _, path in ipairs(initial) do
 end
 local function select_profile(id)
     if mp.get_property_native('user-data/picture/ab')=='before' then mp.commandv('script-message-to','picture_presets','quality-edit','select',id);return end
+    if anime[id] then
+        local paths={}
+        for _,path in ipairs(anime[id].paths)do
+            local expanded=mp.command_native({'expand-path',path})
+            if not utils.file_info(expanded)then mp.osd_message('Нет шейдера: '..path,5);return end
+            paths[#paths+1]=expanded
+        end
+        mp.set_property_native('glsl-shaders',paths)
+        current,sharpen=id,false;publish();mp.osd_message(anime[id].title..' — проверяйте пропуски кадров (Ctrl+I)',4);return
+    end
     for _, p in ipairs(profiles) do
         if p.id == id then
             mp.commandv('apply-profile', 'quality-' .. id)
@@ -61,6 +72,18 @@ local function quality_menu()
         items[#items+1] = {title=p.title, hint=p.hint, active=p.id == current,
             value={'script-message-to', 'quality', 'select', p.id}}
     end
+    local tiers={}
+    for _,tier in ipairs({'fast','hq'})do
+        local children={}
+        for _,mode in ipairs({'a','b','c','aa','bb','ca'})do
+            local id='anime-'..tier..'-'..mode
+            children[#children+1]={title=anime[id].title,active=current==id,
+                hint=(mode=='aa' or mode=='bb' or mode=='ca') and 'Для масштаба 2× и выше' or '',
+                value={'script-message-to','quality','select',id}}
+        end
+        tiers[#tiers+1]={title=tier=='fast' and 'Fast — официальный Low-end' or 'HQ — тяжёлый High-end',items=children}
+    end
+    items[#items+1]={title='Anime4K — все официальные режимы',items=tiers}
     items[#items+1] = {title='Дополнительная резкость SSimSuperRes', active=sharpen,
         value={'script-message-to', 'quality', 'sharpen'}}
     neon_context.open( utils.format_json({
@@ -83,6 +106,11 @@ mp.observe_property('glsl-shaders','native',function(_,paths)
         if path:find('SSimSuperRes',1,true) then sharpen=true end
     end
     if current=='fsrcnnx8' and (selected=='sd480' or selected=='hd720') then current=selected end
+    if current=='anime' and anime[selected] then
+        local expected=anime[selected].paths;local same=#expected==#(paths or {})
+        for i,p in ipairs(paths or {})do if p~=mp.command_native({'expand-path',expected[i] or ''}) then same=false end end
+        if same then current=selected end
+    end
     publish()
 end)
 

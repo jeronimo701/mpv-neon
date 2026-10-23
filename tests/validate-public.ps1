@@ -1,7 +1,7 @@
 param([Parameter(Mandatory)][string]$PlayerRoot,[string]$InstallerManifest = '')
 $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path -LiteralPath $PlayerRoot).Path
-$blockedNames = @('Lossless.dll','memo-history.log','bookmarks.json','picture-presets.json','picture-presets.json.bak','ambient-settings.json','picture-settings.json','motion-settings.json','ui-theme.json','Player.pdb','sponsorblock-settings.json','installation-mode.txt','portable-defaults.sha256')
+$blockedNames = @('Lossless.dll','memo-history.log','bookmarks.json','picture-presets.json','picture-presets.json.bak','ambient-settings.json','picture-settings.json','motion-settings.json','ui-theme.json','audio-settings.json','playlists.json','playlists.json.bak','playlist-window.json','Player.pdb','sponsorblock-settings.json','installation-mode.txt','portable-defaults.sha256')
 $files = @(Get-ChildItem -LiteralPath $root -Recurse -File)
 $blocked = @($files | Where-Object { $_.Name -in $blockedNames -or $_.FullName -match '\\(cache|watch_later|screenshots|torrserver-data|config-backups|new-defaults)\\' -or $_.Extension -in @('.log','.bak','.tmp') })
 if ($blocked.Count) { throw "Private/runtime files found: $($blocked.Count). Do not publish this payload." }

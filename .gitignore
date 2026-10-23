@@ -28,3 +28,7 @@ work/
 **/ui-theme.json
 Lossless.dll
 *.com
+audio-settings.json
+playlists.json
+playlists.json.bak
+playlist-window.json

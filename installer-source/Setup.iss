@@ -5,7 +5,7 @@
   #define SetupOut ".."
 #endif
 #ifndef BuildName
-  #define BuildName "mpv-Neon-Setup-v11.4-public"
+  #define BuildName "mpv-Neon-Setup-v12-public"
 #endif
 #ifdef HandoffTest
   #define TestBuild
@@ -18,7 +18,7 @@
 [Setup]
 AppId={#Identity}
 AppName=mpv Neon
-AppVersion=11.4
+AppVersion=12.0
 AppPublisher=Personal mpv build
 DefaultDirName={code:DefaultPath}
 UsePreviousAppDir=not IsPortable

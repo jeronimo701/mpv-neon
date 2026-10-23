@@ -1,7 +1,9 @@
 -- Separate Windows playlist. A private per-process mailbox keeps it portable.
 local mp=require 'mp'
 local utils=require 'mp.utils'
-local pref=mp.command_native({'expand-path','~~/playlist-window.json'})
+local opts={settings_file='~~/playlist-window.json'}
+require('mp.options').read_options(opts,'playlist-window')
+local pref=mp.command_native({'expand-path',opts.settings_file})
 local exe=mp.command_native({'expand-path','~~/../native/PlaylistWindow.exe'})
 local base=os.tmpname();os.remove(base)
 local state_file=base..'.state.json'
@@ -19,7 +21,8 @@ end
 local function publish()
     mp.set_property_bool('user-data/playlist-window/enabled',enabled)
     write(state_file,utils.format_json({enabled=enabled and not stopping,pause=mp.get_property_bool('pause',false),
-        playlist=mp.get_property_native('playlist',{}),position=mp.get_property_number('playlist-pos',-1)}))
+        playlist=mp.get_property_native('playlist',{}),position=mp.get_property_number('playlist-pos',-1),
+        library=mp.get_property_native('user-data/playlist-library/state',{}),theme=mp.get_property_native('user-data/ui-theme/palette',{})}))
 end
 local function save()write(pref,utils.format_json({enabled=enabled}))end
 local start
@@ -60,6 +63,10 @@ local function consume()
         if target>=0 and target<count then mp.commandv('playlist-move',index,target) end
     elseif data.action=='add' and type(data.paths)=='table' then
         for _,path in ipairs(data.paths) do if type(path)=='string' then mp.commandv('loadfile',path,'append-play') end end
+    elseif data.action=='library-select' and type(data.library_id)=='string' then mp.commandv('script-message-to','playlist_library','select',data.library_id)
+    elseif data.action=='library-new' and type(data.name)=='string' then mp.commandv('script-message-to','playlist_library','new',data.name)
+    elseif data.action=='library-rename' and type(data.name)=='string' then mp.commandv('script-message-to','playlist_library','rename',data.name)
+    elseif data.action=='library-delete' and type(data.library_id)=='string' then mp.commandv('script-message-to','playlist_library','delete-confirm',data.library_id)
     elseif data.action=='pause' then mp.commandv('cycle','pause')
     elseif data.action=='next' then mp.commandv('playlist-next','weak')
     elseif data.action=='prev' then mp.commandv('playlist-prev','weak') end

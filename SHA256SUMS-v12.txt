@@ -1,0 +1,2 @@
+58a1c066a93999b468f1ecdec9fd3c75592ed98f4e73ab49cac7b0039cb4af40  mpv-Neon-Setup-v12-public.exe
+76a10a4be251f08b5c6657f2f060860d615dd4917fafae863f7516cc6296c848  mpv-neon-v12-portable.zip

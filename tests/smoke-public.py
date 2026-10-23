@@ -101,6 +101,6 @@ env=os.environ.copy();env['MPV_NEON_PROFILE_ROOT']=str(profile)
 subprocess.run([str(dest/'mpv-neon.exe'),'--neon-prepare-only'],env=env,check=True,timeout=30)
 assert (profile/'portable_config/input.conf').read_text(encoding='utf-8')==custom
 assert (profile/'portable_config/ui-theme.json').read_text(encoding='utf-8')==theme
-assert (profile/'build-id.txt').read_text().strip()=='mpv-neon-v11.4-public'
+assert (profile/'build-id.txt').read_text().strip()=='mpv-neon-v12-public'
 assert (profile/'runtime').resolve()==(dest/'runtime').resolve()
 print('PASS compiled launcher: isolated installed-mode profile prepared, custom settings preserved',flush=True)

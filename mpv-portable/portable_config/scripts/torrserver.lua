@@ -48,9 +48,9 @@ end
 local function info(text)
     mp.osd_message(text, 5)
 end
-local function request(body, callback)
+local function request(body, callback, on_error)
     ensure_server(function(available)
-    if not available then info('Не удалось подключить или запустить TorrServer. Проверьте настройки и журнал.'); return end
+    if not available then if on_error then on_error() else info('Не удалось подключить или запустить TorrServer. Проверьте настройки и журнал.') end; return end
     local args = {'curl.exe', '--silent', '--show-error', '--fail', '--connect-timeout', '5',
         '--max-time', tostring(opts.timeout), '--header', 'Content-Type: application/json',
         '--data-raw', utils.format_json(body)}
@@ -64,11 +64,11 @@ local function request(body, callback)
         if not success or not result or result.status ~= 0 then
             ready=false
             mp.msg.warn('TorrServer request failed: ' .. tostring(result and result.status))
-            info('TorrServer недоступен. Нажмите F3 для повторного поиска и запуска.')
+            if on_error then on_error() else info('TorrServer недоступен. Нажмите F3 для повторного поиска и запуска.') end
             return
         end
         local data = utils.parse_json(result.stdout)
-        if not data then info('TorrServer вернул некорректный ответ'); return end
+        if not data then if on_error then on_error() else info('TorrServer вернул некорректный ответ') end; return end
         callback(data)
     end)
     end)
@@ -86,18 +86,97 @@ local function stream_url(hash, file)
     return base .. '/stream/' .. encode((file.path or 'video'):match('[^/\\]+$') or 'video')
         .. '?link=' .. encode(hash) .. '&index=' .. tostring(file.id) .. '&play'
 end
+-- The percentage below is the server's startup buffer, NOT the full torrent download.
+local overlay=mp.create_osd_overlay('ass-events')
+local progress
+local epoch=0
+local function clear_progress()
+    epoch=epoch+1;progress=nil;overlay:remove();mp.set_property_native('user-data/torrserver/progress',{})
+end
+local function escape(text)return tostring(text or ''):gsub('\\','\\e'):gsub('{','\\{'):gsub('}','\\}'):gsub('[\r\n]',' ')end
+local function short_title(text)
+    local chars={}
+    for c in tostring(text or ''):gmatch('[%z\1-\127\194-\244][\128-\191]*') do
+        if #chars>=72 then chars[#chars+1]='…';break end;chars[#chars+1]=c
+    end
+    return table.concat(chars)
+end
+local function draw_progress()
+    if not progress then return end
+    local s=progress
+    local headline=s.phase or 'Ожидание потока'
+    local percent=s.percent
+    local percent_text=percent and string.format(' · %.0f%%',percent) or string.rep('·',math.floor(mp.get_time()*2)%4+1)
+    local accent=mp.get_property_native('user-data/ui-theme/palette',{accent='53ADFF'}).accent or '53ADFF'
+    accent=accent:sub(5,6)..accent:sub(3,4)..accent:sub(1,2)
+    local detail=string.format('%.1f МБ/с · пиров %d · буфер %.1f / %.1f МБ',
+        (s.speed or 0)/1048576,s.peers or 0,(s.bytes or 0)/1048576,(s.total or 0)/1048576)
+    overlay.res_x=1280;overlay.res_y=720
+    local fill=percent and math.floor(640*percent/100) or 50
+    local x=percent and 320 or 320+math.floor((mp.get_time()%2)/2*590)
+    overlay.data=string.format('{\\an7\\pos(0,0)\\bord0\\1c&H17120F&\\alpha&H28&\\p1}m 280 260 l 1000 260 1000 420 280 420{\\p0}\n'..
+        '{\\an5\\pos(640,290)\\fnSegoe UI\\fs24\\bord1\\1c&HFFFFFF&}%s%s\n'..
+        '{\\an5\\pos(640,328)\\fnSegoe UI\\fs22\\bord1\\1c&HFFFFFF&}%s\n'..
+        '{\\an5\\pos(640,361)\\fnSegoe UI\\fs20\\bord1\\1c&HFFFFFF&}%s\n'..
+        '{\\an7\\pos(0,0)\\bord0\\1c&H%s&\\p1}m %d 390 l %d 390 %d 395 %d 395{\\p0}',
+        escape(headline),percent_text,escape(short_title(s.title)),escape(detail),accent,x,x+fill,x+fill,x)
+    overlay:update()
+    mp.set_property_native('user-data/torrserver/progress',{phase=s.phase,percent=percent,download_speed=s.speed or 0,peers=s.peers or 0})
+end
+local function poll_progress()
+    local s=progress
+    if not s or s.inflight or not s.hash then return end
+    s.inflight=true;local token=epoch
+    request({action='get',hash=s.hash},function(torrent)
+        if epoch~=token or progress~=s then return end
+        s.inflight=false
+        s.bytes=tonumber(torrent.preloaded_bytes) or 0;s.total=tonumber(torrent.preload_size) or 0
+        s.percent=s.total>0 and math.max(0,math.min(100,s.bytes/s.total*100)) or nil
+        s.speed=tonumber(torrent.download_speed) or 0;s.peers=tonumber(torrent.active_peers) or 0
+        s.phase=torrent.stat==1 and 'Получаю метаданные' or torrent.stat==2 and 'Буфер перед запуском' or 'Открываю поток'
+        if mp.get_property_bool('paused-for-cache',false) then
+            s.phase='Буферизация mpv';s.percent=mp.get_property_number('cache-buffering-state',0)
+        end
+        draw_progress()
+    end,function()
+        if epoch~=token or progress~=s then return end
+        s.inflight=false;s.phase='Нет ответа сервера — повторяю · F3: меню';s.percent=nil;draw_progress()
+    end)
+end
+local function begin_progress(hash,title)
+    clear_progress();progress={hash=hash,title=title,phase='Подключаю TorrServer'};draw_progress();poll_progress()
+end
+mp.add_periodic_timer(0.75,function()if progress then draw_progress();poll_progress() end end)
+mp.register_event('start-file',function()
+    local url=mp.get_property('path','')
+    local hash=url:match('[?&]link=(%x+)')
+    if hash and #hash==40 and url:find('/stream/',1,true) then
+        if not progress or progress.hash~=hash then begin_progress(hash,mp.get_property('media-title','TorrServer')) end
+    elseif progress then clear_progress() end
+end)
+mp.register_event('file-loaded',clear_progress)
+mp.register_event('end-file',clear_progress)
+mp.register_event('shutdown',clear_progress)
+mp.observe_property('paused-for-cache','bool',function(_,waiting)
+    if waiting then
+        local hash=mp.get_property('path',''):match('[?&]link=(%x+)')
+        if hash and #hash==40 and not progress then begin_progress(hash,mp.get_property('media-title','TorrServer')) end
+    elseif progress and progress.phase=='Буферизация mpv' then clear_progress() end
+end)
 local function play(hash, index)
+    begin_progress(hash,'Подготовка выбранного файла')
     request({action='get', hash=hash}, function(torrent)
         for _, file in ipairs(torrent.file_stats or {}) do
             if tostring(file.id) == tostring(index) then
                 local url = stream_url(hash, file)
                 local title = (file.path or torrent.title or 'TorrServer'):match('[^/\\]+$')
+                if progress then progress.title=title;progress.phase='Открываю поток';draw_progress() end
                 mp.command_native({'loadfile', url, 'replace', -1, {['force-media-title']=title}})
                 return
             end
         end
-        info('Файл пока недоступен: обновите список после загрузки метаданных.')
-    end)
+        clear_progress();info('Файл пока недоступен: обновите список после загрузки метаданных.')
+    end,function()clear_progress();info('TorrServer недоступен — F3 для повторной попытки.')end)
 end
 local function show_files(hash)
     serial = serial + 1

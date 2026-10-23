@@ -84,17 +84,9 @@ mp.register_script_message('bookmark-delete-confirm',function(index,created)
     bookmark_menu()
 end)
 local function night_toggle()
-    local active=false
-    for _, filter in ipairs(mp.get_property_native('af', {})) do if filter.label=='night' then active=true end end
-    if active then mp.commandv('af','remove','@night') else
-        mp.commandv('af','add','@night:lavfi=[acompressor=threshold=0.125:ratio=4:attack=20:release=250:makeup=2,alimiter=limit=0.95:level=false]')
-    end
-    night=not active
-    mp.set_property_bool('user-data/player-tools/night',night)
-    mp.commandv('script-message-to','uosc','set-button','night',utils.format_json({icon='bedtime',active=night,
-        tooltip='Ночной звук',command={'script-binding','player_tools/night'}}))
-    mp.osd_message('Ночной звук: ' .. (night and 'включён' or 'выключен'),2)
+    mp.commandv('script-message-to','audio_settings','toggle-night')
 end
+mp.observe_property('user-data/player-tools/night','bool',function(_,v)night=v==true end)
 local function reload()
     local path=source_path()
     if not path then mp.osd_message('Нет открытого видео',2); return end
@@ -145,6 +137,8 @@ mp.add_key_binding(nil,'bookmark-add',add_bookmark)
 mp.add_key_binding(nil,'reload',reload)
 mp.add_key_binding(nil,'settings',function()
     open_menu('player-settings','Настройки',{
+        {title='Звук — нормализация, усиление %, WASAPI',icon='volume_up',value={'script-binding','audio_settings/menu'}},
+        {title='Мои плейлисты — сохранить / переключить',icon='playlist_play',value={'script-binding','playlist_library/menu'}},
         {title='Оформление',icon='palette',value={'script-binding','ui_theme/menu'}},
         {title='Отдельное окно плейлиста: '..(mp.get_property_native('user-data/playlist-window/enabled',false) and 'вкл.' or 'выкл.'),
             active=mp.get_property_native('user-data/playlist-window/enabled',false),value={'script-binding','playlist_window/toggle'}},
@@ -189,8 +183,7 @@ mp.add_key_binding(nil,'percent-seek',function(_,key)
     if digit then mp.commandv('seek',tostring(digit*10),'absolute-percent') end
 end)
 mp.add_timeout(0.3,function()
-    mp.commandv('script-message-to','uosc','set-button','night',utils.format_json({icon='bedtime',active=false,
-        tooltip='Ночной звук',command={'script-binding','player_tools/night'}}))
+    mp.commandv('script-message-to','audio_settings','publish')
 end)
 local function volume_button()
     local muted=mp.get_property_bool('mute',false) or mp.get_property_number('volume',0)==0
