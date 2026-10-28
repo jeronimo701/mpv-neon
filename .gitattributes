@@ -5,3 +5,6 @@
 *.otf binary
 *.ttf binary
 *.bgra binary
+README.md text eol=lf
+DETAILS.ru.md text eol=lf
+CHANGELOG.md text eol=lf
