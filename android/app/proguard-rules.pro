@@ -1,0 +1,5 @@
+-keep class com.hierynomus.smbj.auth.** { *; }
+-keepclassmembers class * { @net.engio.mbassy.listener.Handler <methods>; }
+-dontwarn javax.security.**
+-dontwarn org.ietf.jgss.**
+-dontwarn org.slf4j.impl.StaticLoggerBinder

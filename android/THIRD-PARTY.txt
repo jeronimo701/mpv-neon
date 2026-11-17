@@ -1,0 +1,16 @@
+Neon Player Android — bundled dependencies
+
+SMBJ 0.14.0 — Apache License 2.0
+https://github.com/hierynomus/smbj
+asn-one 0.6.0 — Apache License 2.0
+https://github.com/hierynomus/asn-one
+SLF4J API 2.0.9 — MIT
+https://www.slf4j.org/license.html
+MBassador 1.3.0 — MIT
+https://github.com/bennidi/mbassador
+Bouncy Castle Provider 1.79 — Bouncy Castle license (MIT-style)
+https://www.bouncycastle.org/licence.html
+
+Apache License 2.0: https://www.apache.org/licenses/LICENSE-2.0
+MIT: https://opensource.org/license/mit
+Original bundled notices, where available, are included under META-INF/licenses/.

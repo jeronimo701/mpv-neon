@@ -1,0 +1,5 @@
+<resources>
+    <style name="NeonTheme" parent="android:style/Theme.Material.NoActionBar">
+        <item name="android:colorAccent">#61CDFF</item>
+    </style>
+</resources>

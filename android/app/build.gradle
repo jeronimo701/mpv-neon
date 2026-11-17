@@ -1,0 +1,9 @@
+plugins { id 'com.android.application' version '8.7.3' }
+android {
+ namespace 'neon.androidplayer'
+ compileSdk 35
+ defaultConfig { applicationId 'neon.androidplayer'; minSdk 24; targetSdk 35; versionCode 4; versionName '0.4.0' }
+ compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+ buildTypes { release { minifyEnabled true; shrinkResources true; proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro' } }
+}
+dependencies { implementation 'com.hierynomus:smbj:0.14.0' }
