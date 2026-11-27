@@ -1,3 +1,5 @@
+![mpv-neon — обложка проекта](docs/banner.svg)
+
 # mpv Neon
 
 > **Android:** [Neon Player Full 0.3.7 и Lite 0.6.0](https://github.com/jeronimo701/NeonPlayer-Android) — отдельный репозиторий с APK, исходниками и сравнением версий. Lite завершена и больше не обновляется.
